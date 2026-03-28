@@ -330,3 +330,9 @@ ntohl 🔶
 inet_ntop 🔶
 
 👉 log/debug için
+
+SOURCES
+https://medium.com/@afatir.ahmedfatir/small-irc-server-ft-irc-42-network-7cee848de6f9#:~:text=Part%203%3A%20Use%20the%20poll()%20function%20to%20check%20if%20an%20event%20has%20occurred.
+
+https://www.youtube.com/watch?v=7GBlCinu9yg&list=PLHBVNH27RbWqGTL-AYMylWkNck45cxPnG&index=7
+
