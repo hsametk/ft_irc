@@ -1,20 +1,24 @@
 #ifndef SERVER_HPP
 #define SERVER_HPP
 
-
 #include <iostream>
-#include <vector> //-> for vector
-#include <sys/socket.h> //-> for socket()
-#include <sys/types.h> //-> for socket()
-#include <netinet/in.h> //-> for sockaddr_in
-#include <fcntl.h> //-> for fcntl()
-#include <unistd.h> //-> for close()
-#include <arpa/inet.h> //-> for inet_ntoa()
-#include <poll.h> //-> for poll()
-#include <csignal> //-> for signal()
-#include <map>
 #include <string>
+#include <vector>
+#include <map>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <poll.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <csignal>
+#include <cstring>
 #include "Client.hpp"
+#include "Channel.hpp"
+
+#define MAX_CLIENTS 1024
+
 class Server
 {
 private:
@@ -23,27 +27,19 @@ private:
     std::string                 _password;
     std::vector<struct pollfd>  _pfds;
     std::map<int, Client>       _clients;
-    int _port;
-    std::string _password;
+    void    initServer();
+    void    acceptClient();
+    void    receiveFromClient(int fd);
+    void    removeClient(int fd);
+    void    addPollFd(int fd);
+    Server(const Server &other);
+    Server &operator=(const Server &other);
+
 public:
-    Server();
-    Server(int port, std::string password);
-    Server(const Server& other);
-    Server& operator=(const Server& other);
+    Server(int port, const std::string &password);
     ~Server();
-    void initServer();
-    void run();
-    void acceptClient();
-    void receiveFromClient(int fd);
-    void removeClient(int fd);
+    void    run();
+
 };
-
-Server::Server(/* args */)
-{
-}
-
-Server::~Server()
-{
-}
 
 #endif

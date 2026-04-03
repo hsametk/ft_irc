@@ -1,11 +1,14 @@
-NAME = a.out
+NAME    = ircserv
 
-CXX = c++
+CXX     = c++
 CXXFLAGS = -Wall -Wextra -Werror -std=c++98
 
-SRCS = src/Server.cpp
+SRCS    = main.cpp \
+          src/Server.cpp \
+          src/Client.cpp \
+          src/Channel.cpp
 
-OBJS = $(SRCS:.cpp=.o)
+OBJS    = $(SRCS:.cpp=.o)
 
 all: $(NAME)
 
@@ -13,7 +16,7 @@ $(NAME): $(OBJS)
 	$(CXX) $(CXXFLAGS) $(OBJS) -o $(NAME)
 
 %.o: %.cpp
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -Iinclude -c $< -o $@
 
 clean:
 	rm -f $(OBJS)
