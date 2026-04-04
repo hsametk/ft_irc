@@ -22,10 +22,12 @@ Server::Server(int port, const std::string &password)
 
 Server::~Server()
 {
+    // Close all client sockets
     for (size_t i = 0; i < _pfds.size(); i++)
         close(_pfds[i].fd);
     std::cout << "Server shut down.\n";
 }
+// Signal Handler
 void Server::signalHandler(int signum)
 {
     (void)signum;
@@ -96,45 +98,54 @@ void Server::run()
 // Private: Accept New Client
 void Server::acceptClient()
 {
+    // Accept new client
     int clientFd = accept(_serverFd, NULL, NULL);
     if (clientFd == -1)
     {
         std::cerr << "Error: accept() failed\n";
         return;
     }
-
+    // Set client socket to non-blocking
     if (fcntl(clientFd, F_SETFL, O_NONBLOCK) == -1)
     {
         close(clientFd);
         return;
     }
+    // Check if max clients reached
     if ((int)_pfds.size() >= MAX_CLIENTS)
     {
         std::cerr << "Max clients reached, rejecting fd " << clientFd << "\n";
         close(clientFd);
         return;
     }
-
+    // Add client to poll set
     addPollFd(clientFd);
+    // Add client to clients map
     _clients[clientFd] = Client(clientFd);
     std::cout << "New client connected: fd=" << clientFd << "\n";
 }
 // Private: Read From Client
 void Server::receiveFromClient(int fd)
 {
+    // Receive data from client
     char    buf[512];
     ssize_t bytes = recv(fd, buf, sizeof(buf) - 1, 0);
 
+    // Check if client disconnected
     if (bytes <= 0)
     {
+        // Print error message
         if (bytes == 0)
             std::cout << "Client fd=" << fd << " disconnected.\n";
         else
+            // Print error message
             std::cerr << "Error: recv() failed on fd=" << fd << "\n";
+        // Remove client
         removeClient(fd);
         return;
     }
     buf[bytes] = '\0';
+    // Append data to client buffer
     _clients[fd].appendToBuffer(buf);
     // TODO: parse IRC messages from buffer (look for \r\n)
     std::cout << "[fd=" << fd << "] raw: " << buf;
@@ -158,9 +169,11 @@ void Server::removeClient(int fd)
 // Private: Add fd to poll set
 void Server::addPollFd(int fd)
 {
+    // Create pollfd
     struct pollfd pfd;
     pfd.fd      = fd;
     pfd.events  = POLLIN;
     pfd.revents = 0;
+    // Add fd to poll set
     _pfds.push_back(pfd);
 }
