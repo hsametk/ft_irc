@@ -27,11 +27,13 @@ private:
     std::string                 _password;
     std::vector<struct pollfd>  _pfds;
     std::map<int, Client>       _clients;
+    static bool                 _running;
     void    initServer();
     void    acceptClient();
     void    receiveFromClient(int fd);
     void    removeClient(int fd);
-    void    addPollFd(int fd);
+    void            addPollFd(int fd);
+    static void     signalHandler(int signum);
     Server(const Server &other);
     Server &operator=(const Server &other);
 

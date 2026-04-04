@@ -1,10 +1,23 @@
 #include "../include/Server.hpp"
 
+bool Server::_running = true;
+
 // Constructor / Destructor
 Server::Server(int port, const std::string &password)
     : _serverFd(-1), _port(port), _password(password)
 {
-    initServer();
+    signal(SIGINT,  Server::signalHandler);
+    signal(SIGTERM, Server::signalHandler);
+    try
+    {
+        initServer();
+    }
+    catch (...)
+    {
+        if (_serverFd != -1)
+            close(_serverFd);
+        throw;
+    }
 }
 
 Server::~Server()
@@ -13,6 +26,12 @@ Server::~Server()
         close(_pfds[i].fd);
     std::cout << "Server shut down.\n";
 }
+void Server::signalHandler(int signum)
+{
+    (void)signum;
+    std::cout << "\nSignal received, shutting down...\n";
+    _running = false;
+}
 // Private: Initialise Socket
 void Server::initServer()
 {
@@ -20,13 +39,14 @@ void Server::initServer()
     _serverFd = socket(AF_INET, SOCK_STREAM, 0);
     if (_serverFd == -1)
         throw std::runtime_error("Error: socket() failed");
-
-    // 2. Allow address reuse (avoids "address already in use" on restart)
+    // 2. Non-blocking
+    if (fcntl(_serverFd, F_SETFL, O_NONBLOCK) == -1)
+        throw std::runtime_error("Error: fcntl() failed");
+    // 3. Allow address reuse
     int opt = 1;
     if (setsockopt(_serverFd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1)
         throw std::runtime_error("Error: setsockopt() failed");
-
-    // 3. Bind to port
+    // 4. Bind to port
     struct sockaddr_in addr;
     std::memset(&addr, 0, sizeof(addr));
     addr.sin_family      = AF_INET;
@@ -36,11 +56,11 @@ void Server::initServer()
     if (bind(_serverFd, (struct sockaddr *)&addr, sizeof(addr)) == -1)
         throw std::runtime_error("Error: bind() failed");
 
-    // 4. Start listening
+    // 5. Start listening
     if (listen(_serverFd, 5) == -1)
         throw std::runtime_error("Error: listen() failed");
 
-    // 5. Add server fd to poll set
+    // 6. Add server fd to poll set
     addPollFd(_serverFd);
 
     std::cout << "Server listening on port " << _port << "\n";
@@ -48,11 +68,13 @@ void Server::initServer()
 // Public: Event Loop
 void Server::run()
 {
-    while (true)
+    while (_running)
     {
         int ready = poll(&_pfds[0], _pfds.size(), -1);
         if (ready == -1)
         {
+            if (!_running)
+                break;  // signal ile kırıldı, normal çıkış
             std::cerr << "Error: poll() failed\n";
             break;
         }
@@ -81,6 +103,11 @@ void Server::acceptClient()
         return;
     }
 
+    if (fcntl(clientFd, F_SETFL, O_NONBLOCK) == -1)
+    {
+        close(clientFd);
+        return;
+    }
     if ((int)_pfds.size() >= MAX_CLIENTS)
     {
         std::cerr << "Max clients reached, rejecting fd " << clientFd << "\n";
