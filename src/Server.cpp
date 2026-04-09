@@ -70,26 +70,35 @@ void Server::initServer()
 // Public: Event Loop
 void Server::run()
 {
+    int ready;
+    size_t currentSize;
     while (_running)
     {
-        int ready = poll(&_pfds[0], _pfds.size(), -1);
+        // poll() returns the number of file descriptors that are ready for I/O
+        // -1 means wait indefinitely
+        ready = poll(&_pfds[0], _pfds.size(), -1);
         if (ready == -1)
         {
+            // if _running is false, it means the signal handler was called
             if (!_running)
-                break;  // signal ile kırıldı, normal çıkış
+                break;
             std::cerr << "Error: poll() failed\n";
             break;
         }
 
         // Iterate over a *copy* of current size so we don't trip on removals
-        size_t currentSize = _pfds.size();
+        currentSize = _pfds.size();
+        // loop through all file descriptors
         for (size_t i = 0; i < currentSize; i++)
         {
+            // if revents is not POLLIN, continue
             if (!(_pfds[i].revents & POLLIN))
                 continue;
-
+            // if revents is POLLIN, it means the file descriptor is ready for I/O
+            // if the file descriptor is the server fd, accept the new client
             if (_pfds[i].fd == _serverFd)
                 acceptClient();
+            // else, receive data from the client
             else
                 receiveFromClient(_pfds[i].fd);
         }
@@ -98,8 +107,9 @@ void Server::run()
 // Private: Accept New Client
 void Server::acceptClient()
 {
+    int clientFd;
     // Accept new client
-    int clientFd = accept(_serverFd, NULL, NULL);
+    clientFd = accept(_serverFd, NULL, NULL);
     if (clientFd == -1)
     {
         std::cerr << "Error: accept() failed\n";
@@ -121,6 +131,7 @@ void Server::acceptClient()
     // Add client to poll set
     addPollFd(clientFd);
     // Add client to clients map
+    //TODO: Client constructor'ı yazılmalı ve buraya eklenmeli burada yeni kullanıcı oluşturuluyor.
     _clients[clientFd] = Client(clientFd);
     std::cout << "New client connected: fd=" << clientFd << "\n";
 }
@@ -129,8 +140,9 @@ void Server::receiveFromClient(int fd)
 {
     // Receive data from client
     char    buf[512];
-    ssize_t bytes = recv(fd, buf, sizeof(buf) - 1, 0);
-
+    ssize_t bytes;
+    
+    bytes = recv(fd, buf, sizeof(buf) - 1, 0);
     // Check if client disconnected
     if (bytes <= 0)
     {
@@ -147,8 +159,16 @@ void Server::receiveFromClient(int fd)
     buf[bytes] = '\0';
     // Append data to client buffer
     _clients[fd].appendToBuffer(buf);
-    // TODO: parse IRC messages from buffer (look for \r\n)
-    std::cout << "[fd=" << fd << "] raw: " << buf;
+    // Extract and log complete commands (split by \r\n)
+    std::string &buffer = _clients[fd].getBuffer();
+    size_t pos;
+    while ((pos = buffer.find("\r\n")) != std::string::npos)
+    {
+        std::string line = buffer.substr(0, pos);
+        buffer.erase(0, pos + 2);
+        if (!line.empty())
+            std::cout << "[fd=" << fd << "] cmd: " << line << "\n";
+    }
 }
 // Private: Remove Client
 void Server::removeClient(int fd)

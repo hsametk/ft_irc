@@ -1,6 +1,6 @@
 #include "../include/Client.hpp"
 
-// temporary classes for execute
+// TODO::temporary classes for execute
 Client::Client()
     : _fd(-1), _nickname(""), _username(""), _registered(false), _buffer("")
 {

@@ -1,452 +1,345 @@
-Süper, artık en kritik kısımdayız: doğru başlangıç + doğru ekip planı 🔥
-2 kişi olmanız avantaj ama yanlış ilerlerseniz çakışırsınız.
+ft_irc feature roadmap
+0. Temel hazırlık
 
-Ben sana 42 uyumlu, ekipli, adım adım net plan veriyorum.
+Önce ekipçe bunları netleştir:
 
-👉 Bu proje çok bağımlı parçalar içerir
-
-❗ En doğrusu: core’u birlikte yazmak, feature’ları bölmek
-
-🧱 1. İlk gün: sadece ARCHITECTURE (kod yazma!)
-
-İkiniz birlikte şunu netleştirin:
-
-🔹 Hangi class’lar olacak?
-
-Minimum:
-
+./ircserv <port> <password> akışı
+hangi class’lar var
+hangi class neyi tutuyor
+Mac’te geliştirip Ubuntu’da test edileceği için sadece POSIX uyumlu şeyler kullanma
+başta gereksiz bonuslara girmeme
+Minimum class fikri
 Server
 Client
 Channel
-🔹 Server ne tutacak?
-
-Düşün:
-
+Server ne tutsun?
 server socket fd
-
 pollfd listesi
-
-client listesi
-
-channel listesi
-
-🔹 Client ne tutacak?
-
+client container’ı
+channel container’ı
+server password
+Client ne tutsun?
 fd
-
 nickname
-
 username
-
-registered mı?
-
-buffer (ÇOK ÖNEMLİ)
-
-🔹 Channel ne tutacak?
-
-channel name
-
+realname
+register durumu
+input buffer
+girdiği channel’lar hakkında bilgi
+Channel ne tutsun?
+kanal adı
+topic
 user listesi
-
 operator listesi
+mode bilgileri
+invite listesi
+key / user limit
+1. Socket setup feature
 
-👉 Bunu kağıtta netleştirmeden KOD YAZMAYIN
+İlk feature sadece server’ın ayağa kalkması olsun.
 
-🏗️ 2. Gün: CORE LOOP (birlikte yazın)
+Hedef
+socket aç
+bind yap
+listen yap
+poll ile bekle
+yeni bağlantıyı accept et
+Demo kriteri
+irssi bağlanınca server terminalinde
+“new client connected”
+fd bilgisi
+görünmeli
+Bu feature bitmeden geçme
 
-İkiniz beraber yazacaksınız:
+Şunları net bil:
 
-🎯 hedef:
-while (true)
-{
-    poll()
+accept ne döndürür
+recv == 0 ne demek
+non-blocking ister misin
+poll event’lerini nasıl yöneteceksin
+2. Client connection management feature
 
-    if (new connection)
-        accept()
+Yeni bağlanan client’ı sadece kabul etmek yetmez, onu yönetebilmen lazım.
 
-    if (client data)
-        recv()
-}
-🔥 Bu aşamada:
+Hedef
+her yeni client için Client objesi oluştur
+fd ile client objesini eşle
+disconnect olunca temizle
+pollfd listesinden çıkar
+Demo kriteri
+2 client bağlanabilsin
+biri çıkınca server çökmesin
+kalan client çalışmaya devam etsin
+3. Input buffer feature
 
-✔ multi-client çalışmalı
-✔ crash olmamalı
-✔ disconnect yakalanmalı
+Burası çok kritik.
 
-❌ command yok
-❌ IRC logic yok
+IRC, stream-based çalışır. Komutlar parçalı gelebilir.
 
-🧪 3. Gün: BUFFER sistemi (yine birlikte)
+Hedef
 
-Bu aşama çok kritik:
+Her client için:
 
-👉 Her client için:
+gelen veriyi buffer’a ekle
+\r\n görünce tam satır çıkar
+tek recv içinde birden fazla komut gelirse ayır
+parçalı gelen komutu sonraki recv ile tamamla
+Demo kriteri
 
-client.buffer += recv_data;
+Server logunda şunlar düzgün ayrılsın:
 
-Sonra:
+CAP LS 302
+PASS ...
+NICK ...
+USER ...
+4. Message parsing feature
 
-while (buffer içinde \r\n varsa)
-    komutu çıkar
+Artık raw string değil, gerçek IRC komutu parse etmen lazım.
 
-👉 Bu çözülmeden ilerlemeyin
+Hedef
 
-🧩 4. Gün: Burada bölünebilirsiniz (İLK BÖLÜM)
+Bir satırı şuna ayır:
 
-Artık sistem stabil → şimdi iş bölümü yapılır
+command
+params
+trailing parametre
 
-👨‍💻 Kişi 1: NETWORK / CORE
+Örnek:
+USER samet 0 * :real name
 
-poll loop
+Burada:
 
-client yönetimi
+command = USER
+params = samet, 0, *
+trailing = real name
+Demo kriteri
 
-recv/send
+Her gelen satır için log:
 
-buffer sistemi
+command ne
+kaç parametre var
+trailing var mı
+5. Registration feature
 
-👨‍💻 Kişi 2: IRC LOGIC
+IRC’de user direkt konuşamaz. Önce register olmalı.
 
-command parsing
+Hedef
 
-NICK / USER / PASS
-
-command handler
-
-👉 Ama dikkat:
-
-HER GÜN merge yapın
-ayrı ayrı kopmayın
-
-🧠 5. GÜN: REGISTRATION
-
-İlk gerçek IRC kısmı:
+Şunları handle et:
 
 PASS
-
 NICK
-
 USER
+Düşünmen gereken state
 
-👉 Burada şu state’i kur:
+Client için flag mantığı:
 
-client.registered = true/false
-🧪 6. GÜN: irssi ile test
+pass_ok
+nick_set
+user_set
+registered
+Demo kriteri
 
-Artık:
+Bu üçü tamamlanınca:
 
-/connect localhost 6667
+client “registered” olsun
+server bir welcome akışı başlatsın
+6. CAP handling feature
 
-dediğinde:
+irssi ile çalışmak için bu kısmı en azından minimum handle etmen gerekecek.
 
-👉 server çökmemeli
-👉 komutları loglamalı
+Hedef
+CAP LS 302 gelince client’ı beklemede bırakmamak
+minimum uygun cevapla handshake’in devam etmesini sağlamak
+Demo kriteri
 
-💬 7. GÜN: BASİT KOMUTLAR
+irssi’de:
 
-Başlangıç:
+“Waiting for CAP LS response...” takılmaması
+sonra NICK/USER aşamasına geçebilmesi
+7. Command dispatcher feature
 
-PING → PONG
+Parse ettiğin command’i doğru handler’a yönlendir.
 
-QUIT
+Hedef
 
-🧱 8. GÜN: CHANNEL
+Mesela:
 
-JOIN
+PASS → handlePass
+NICK → handleNick
+USER → handleUser
+JOIN → handleJoin
+Demo kriteri
 
+Kodun tek yerde dağılmaması.
+if else cehennemine dönmemesi.
+
+8. Basic reply / send feature
+
+Artık server sadece okumasın, cevap da versin.
+
+Hedef
+client’a formatlı IRC satırı gönderebil
+tüm gönderilen mesajları tek helper ile üret
+\r\n unutma
+Demo kriteri
+
+Server loglasın:
+
+ne gönderdi
+kime gönderdi
+
+Bu feature olmadan irssi’de düzgün görüntü alamazsın.
+
+9. Channel creation and JOIN feature
+
+Artık gerçek IRC hissi burada başlar.
+
+Hedef
+JOIN #kanal
+kanal yoksa oluştur
+varsa kullanıcıyı ekle
+join mesajını yayınla
+Düşün
+
+Kanalı kim oluşturuyor?
+Cevap: server
+
+Demo kriteri
+
+2 client aynı kanala girebilsin.
+
+10. Channel membership feature
+
+Client hangi channel’da, channel içinde kim var, bunları düzgün tut.
+
+Hedef
+channel user listesi
+client’ın joined channel bilgisi
+kanaldan çıkınca iki taraftan da sil
+Demo kriteri
+
+Memory/state bozulmadan:
+
+join
+part
+quit
+çalışsın
+11. PRIVMSG feature
+
+Bence en gösterişli demo feature budur.
+
+Hedef
+user → user mesajı
+user → channel mesajı
+Kontroller
+hedef user var mı
+hedef channel var mı
+gönderen kanalda mı
+Demo kriteri
+
+İki irssi aç:
+
+ikisi de #42’ye girsin
+birinden yazınca diğerinde görünsün
+
+Yarın arkadaşına göstermek için en güzel aşama bu olur.
+
+12. PART and QUIT feature
+
+Temizlik aşaması.
+
+Hedef
 PART
-
-💥 9. GÜN: MESAJ
-
-PRIVMSG
-
-👑 10. GÜN: OPERATOR
-
-KICK
-
-INVITE
-
-MODE
-
-🔥 ÇOK KRİTİK TAKIM KURALI
-
-Her gün:
-
-birlikte 1 saat design konuşun
-
-kod yazın
-
-test edin (irssi ile)
-
-commit + merge
-
-🧪 irssi’yi nasıl kullanacaksınız?
-
-Irssi sizin:
-
-🧪 “gerçek kullanıcı simülatörünüz”
-
-Test akışı:
-Terminal 1:
-./ircserv 6667
-Terminal 2:
-irssi
-/connect localhost 6667 samet
-Sonra gözlemle:
-
-hangi komutlar geliyor?
-
-sırayla mı geliyor?
-
-eksik mi geliyor?
-
-🎯 Sana en kritik tavsiye
-
-Şu hatayı yapma:
-
-❌ “JOIN yazayım artık”
-❌ “PRIVMSG yapalım”
-
-👉 Önce:
-
-recv + buffer + poll = %100 sağlam
-
-🧠 Sana challenge (çok önemli)
-
-Şunu düşün:
-
-👉 1 client:
-
-NICK samet\r\nUSER samet\r\n
-
-👉 2 parçaya bölünürse:
-
-NICK sa
-met\r\nUSER samet\r\n
-
-Bunu nasıl handle edeceksin?
-
-
-
-
-
-Tamam. İlk milestone için minimum tutalım. Amaç: aşırı tasarım değil, çalışır omurga.
-
-1) İlk milestone hedefi
-
-Önce sadece şunlar:
-
-server açılıyor
-poll ile birden fazla client yönetilebiliyor
-her client için buffer tutuluyor
-gelen data \r\n ile komutlara bölünebiliyor
-komutlar sadece loglanıyor
-
-Daha:
-
-JOIN logic
-channel logic
-operator logic
-
-yok.
-
-2) Bu hedef için hangi class’lar şart?
-
-Şu aşamada bile bence:
-
-Server
-Client
-
-yeter.
-
-Channel class’ını şimdiden açabilirsin ama kullanmak zorunda değilsin. JOIN gelince gerçekten lazım olacak.
-
-3) Client içinde minimum ne olmalı?
-
-Bir client için şu soruları sor:
-
-Hangi fd’den geldi?
-nick’i ne?
-user’ı ne?
-register oldu mu?
-yarım gelen komut nereye yazılacak?
-
-Buradan minimum alanlar çıkar:
-
-class Client
-{
-private:
-    int         _fd;
-    std::string _nickname;
-    std::string _username;
-    bool        _registered;
-    std::string _buffer;
-};
-Neden bunlar?
-_fd: poll’de olayı hangi kullanıcıya bağlayacağını bilmek için
-_nickname: NICK için
-_username: USER için
-_registered: NICK + USER + PASS sonrası hazır mı diye
-_buffer: parçalı gelen veriyi biriktirmek için
-Şu an gerekmeyenler
-hostname
-realname
-operator flag
-joined channel listesi
-
-Bunları sonra eklersin.
-
-4) Server içinde minimum ne olmalı?
-
-Server’a şu gözle bak:
-
-dinleyen socket’i kim tutacak?
-poll listesi nerede olacak?
-fd → client eşleşmesi nerede olacak?
-password kimde olacak?
-
-Buradan minimum alanlar:
-
-class Server
-{
-private:
-    int                         _serverFd;
-    int                         _port;
-    std::string                 _password;
-    std::vector<struct pollfd>  _pfds;
-    std::map<int, Client>       _clients;
-};
-Neden bunlar?
-_serverFd: listening socket
-_port: hangi portta çalışıyor
-_password: auth için
-_pfds: poll kullanmak için
-_clients: fd ile client’ı bulmak için
-5) Neden std::map<int, Client> mantıklı?
-
-Çünkü poll sana event geldiğinde fd verir.
-Senin hemen şunu yapabilmen lazım:
-
-“Bu fd hangi client’a ait?”
-
-O yüzden:
-
-key = fd
-value = Client
-
-çok doğal bir çözüm.
-
-6) Channel şu an lazım mı?
-
-İlk milestone’da hayır.
-Ama sınıfı şimdiden planlamak istersen minimum şöyle düşün:
-
-class Channel
-{
-private:
-    std::string _name;
-};
-
-Sadece bu bile yeter şu an.
-Ama kullanmana gerek yok.
-
-7) Server hangi fonksiyonlara ihtiyaç duyar?
-
-İlk milestone için class’tan çok davranışı düşün.
-
-Bence minimum şu tip fonksiyonlar gerekir:
-
-void initServer();
-void run();
-void acceptClient();
-void receiveFromClient(int fd);
-void removeClient(int fd);
-Mantıkları
-initServer() → socket, bind, listen, non-block
-run() → ana poll loop
-acceptClient() → yeni bağlantı al
-receiveFromClient(fd) → recv yap, buffer’a ekle
-removeClient(fd) → client disconnect ise temizle
-8) Client hangi fonksiyonlara ihtiyaç duyar?
-
-Minimum:
-
-int getFd() const;
-void appendToBuffer(const std::string& data);
-std::string& getBuffer();
-
-Ama istersen ilk aşamada getter/setter bile abartmadan yazabilirsin.
-
-9) Şu anki en kritik tasarım kararı
-
-Bence şu:
-
-buffer Server’da mı tutulmalı, Client’ta mı?
-
-Doğru cevap:
-
-Client’ta
-
-Çünkü parçalı gelen veri kullanıcıya özeldir.
-Bir client’tan yarım NICK, diğerinden yarım USER gelebilir.
-Hepsini ortak yerde tutarsan karışır.
-
-10) Çok sade başlangıç yapısı
-
-Dosya yapısı mesela şöyle olabilir:
-
-include/
-    Server.hpp
-    Client.hpp
-
-src/
-    main.cpp
-    Server.cpp
-    Client.cpp
-
-İstersen klasörleri büyütürsün sonra.
-
-11) Sana düşünme egzersizi
-
-Şu olay olduğunda hangi class sorumlu?
-
-Olay 1:
-
-Yeni biri bağlandı
-→ Server
-
-Olay 2:
-
-Bir client’ın buffer’ına data eklenecek
-→ Client
-
-Olay 3:
-
-Bir fd kapatılacak ve poll listesinden silinecek
-→ Server
-
-Olay 4:
-
-Bir kullanıcı #42 kanalına girecek
-→ ileride Channel + Server
-
-12) Sana önerdiğim gerçek ilk adım
-
-Şu an sadece bunu yaz:
-
-Client class
-Server class
-Server içinde _serverFd, _pfds, _clients
-Client içinde _fd, _buffer, _nickname, _username, _registered
-
-Ve sonra sadece:
-
-accept
-recv
-buffer append
-print
-
-Bu kadar.
-
-
-1. Katmanlı Mimari Paylaşımı (Layered Logic)Projeyi "Dış Dünya" ve "İç Mantık" olarak ikiye bölebilirsiniz:Üye A: Network & I/O Engine (Dış Dünya)Soket Yönetimi: Sunucunun ayağa kaldırılması, port dinleme ve poll() (veya seçtiğiniz eşdeğeri) döngüsünün kurulması.Bağlantı Kontrolü: İstemcilerin bağlanması, kopan bağlantıların temizlenmesi ve dosya tanımlayıcılarının (FD) yönetimi.Buffer (Tampon) Yönetimi: recv() ile gelen parçalı verilerin (örneğin nc testindeki gibi) her kullanıcı için özel bir string'de birleştirilmesi ve tam komut haline getirilmesi.Non-blocking Yapı: Tüm işlemlerin bloklamadan (non-blocking) yürümesini sağlamak ve fcntl() ayarlarını yapmak.Üye B: IRC Protokolü & Veri Modelleri (İç Mantık)Komut Ayrıştırıcı (Parser): Gelen CAP LS, NICK, JOIN gibi mesajların parametrelerini ayıklayan sınıfı yazmak.Veri Yapıları: User ve Channel sınıflarını tasarlamak (kim hangi kanalda, kim operatör vb.).Komut İşleyicileri: KICK, INVITE, TOPIC ve MODE gibi zorunlu komutların mantıksal kurallarını (yetki kontrolü, hata mesajları) kodlamak.Yanıt Kodları (Numeric Replies): RFC standartlarına uygun başarı ve hata kodlarını hazırlamak. 
+QUIT
+bağlantı kopunca otomatik cleanup
+Demo kriteri
+
+User çıkınca:
+
+channel’dan silinsin
+diğerlerine bildirilsin
+boş channel silinsin mi, karar verin
+13. Channel operator feature
+
+Bundan sonra kanal yetkileri.
+
+Hedef
+
+Kanal operator mantığını oturt:
+
+ilk giren op mu olacak
+op listesi nasıl tutulacak
+
+Bu olmadan KICK, INVITE, MODE sağlıklı olmaz.
+
+14. TOPIC feature
+Hedef
+topic görüntüleme
+topic değiştirme
+Sonra ek kontrol
++t varsa sadece operator değiştirebilsin
+15. INVITE feature
+Hedef
+invite-only kanal için kullanıcı davet etme
+invite listesi tutma
+16. KICK feature
+Hedef
+sadece operator kick atabilsin
+user kanaldan çıkarılsın
+gerekli broadcast yapılsın
+17. MODE feature
+
+En dikkat isteyen feature’lardan biri.
+
+Subjectte geçen temel channel mode’lar
+i invite-only
+t topic only ops
+k channel key
+o give/take operator
+l user limit
+Hedef
+
+Önce bunları tek tek destekle.
+Hepsini aynı anda çözmeye çalışma.
+
+İlerleme sırası önerim
++i
++t
++k
++l
++o
+18. Error handling feature
+
+Bu çok önemli ama çoğu kişi sona bırakıyor.
+
+Hedef
+
+Eksik parametre, yetkisiz işlem, olmayan nick, olmayan channel gibi durumlarda düzgün cevap dönmek.
+
+Demo kriteri
+
+Server çökmesin.
+Yanlış komutta bile kontrollü davransın.
+
+19. Cleanup and robustness feature
+Hedef
+client disconnect
+kanal boşalması
+poll listesinden temiz çıkış
+fd leak olmaması
+map/vector iterator hatası olmaması
+20. Cross-platform test feature
+
+Bu proje için özellikle önemli.
+
+Mac + Ubuntu için dikkat
+Linux-specific saçma bağımlılıklar ekleme
+header include’larını temiz tut
+poll, socket, fcntl, unistd gibi standart POSIX kullan
+derleyici farklarında warning çıkıyor mu bak
+Test et
+Mac’te compile
+Ubuntu’da compile
+irssi ile bağlan
+aynı senaryoları iki ortamda dene
