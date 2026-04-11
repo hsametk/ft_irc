@@ -3,6 +3,7 @@
 #ifndef CHANNEL_HPP
 
 #include <string>
+
 class Channel
 {
 private:

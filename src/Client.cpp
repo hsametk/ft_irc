@@ -1,4 +1,4 @@
-#include "Server.hpp"#include "../include/Client.hpp"
+#include "../include/Client.hpp"
 
 Client::Client() : _fd(-1), _nickname(""), _username(""), _registered(false), _buffer("")
 {
@@ -24,7 +24,7 @@ void Client::setFd(int fd)
 
 void Client::appendToBuffer(const std::string& data)
 {
-    _buffer += data;
+    _buffer.append(data);
 }
 
 std::string& Client::getBuffer()

@@ -2,6 +2,8 @@
 #include <cerrno>
 #include <cstring>
 
+#define MAX_BUFFER_SIZE 8192
+
 Server::Server() : _serverFd(-1), _port(0), _password("")
 {
 }
@@ -36,27 +38,61 @@ Server::~Server()
 
 void Server::initServer()
 {
+    // Bu branch'in konusu değil.
 }
 
 void Server::run()
 {
+    // Bu branch'in konusu değil.
 }
 
 void Server::acceptClient()
 {
+    // Bu branch'in konusu değil.
 }
 
 std::vector<std::string> Server::extractLines(Client& client)
 {
     std::vector<std::string> lines;
     std::string& buffer = client.getBuffer();
-    size_t pos;
 
-    while ((pos = buffer.find("\r\n")) != std::string::npos)
+    while (true)
     {
-        lines.push_back(buffer.substr(0, pos));
-        buffer.erase(0, pos + 2);
+        // Önce IRC standardındaki \r\n sonlandırıcısını arıyoruz.
+        size_t crlfPos = buffer.find("\r\n");
+
+        // Bazı testlerde veya basit client'larda sadece \n gelebilir.
+        size_t lfPos = buffer.find('\n');
+
+        if (crlfPos == std::string::npos && lfPos == std::string::npos)
+            break;
+
+        size_t cutPos;
+        size_t delimiterLength;
+
+        if (crlfPos != std::string::npos && (lfPos == std::string::npos || crlfPos < lfPos))
+        {
+            cutPos = crlfPos;
+            delimiterLength = 2;
+        }
+        else
+        {
+            cutPos = lfPos;
+            delimiterLength = 1;
+        }
+
+        std::string line = buffer.substr(0, cutPos);
+
+        // Satır başında gereksiz \r kalmışsa temizle.
+        if (!line.empty() && line[0] == '\r')
+            line.erase(0, 1);
+
+        lines.push_back(line);
+
+        // İşlenen kısmı buffer'dan sil.
+        buffer.erase(0, cutPos + delimiterLength);
     }
+
     return lines;
 }
 
@@ -80,31 +116,41 @@ void Server::receiveFromClient(int fd)
     {
         if (errno == EAGAIN || errno == EWOULDBLOCK)
             return;
+
         std::cerr << "recv() error on fd " << fd << std::endl;
         removeClient(fd);
         return;
     }
 
     it = _clients.find(fd);
+
+    // Client bu sırada silinmiş olabilir.
     if (it == _clients.end())
         return;
 
+    // Gelen veriyi doğrudan parse etmiyoruz.
+    // Önce ilgili client'ın buffer'ına ekliyoruz.
     it->second.appendToBuffer(std::string(rawBuffer, bytesRead));
 
-    if (it->second.getBuffer().size() > 8192)
+    // Buffer aşırı büyürse bağlantıyı kapat.
+    if (it->second.getBuffer().size() > MAX_BUFFER_SIZE)
     {
-        std::cerr << "Client buffer too large: fd=" << fd << std::endl;
+        std::cerr << "Buffer overflow, dropping client fd=" << fd << std::endl;
         removeClient(fd);
         return;
     }
 
     std::vector<std::string> lines = extractLines(it->second);
+
     for (size_t i = 0; i < lines.size(); ++i)
     {
+        // Boş satırları atla.
         if (lines[i].empty())
             continue;
 
-        std::cout << "fd[" << fd << "] line: [" << lines[i] << "]" << std::endl;
+        std::cout << "[CLIENT " << fd << "] -> " << lines[i] << std::endl;
+
+        // Burada daha sonra parser / command handler çağrılabilir.
     }
 }
 

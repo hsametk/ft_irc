@@ -1,9 +1,11 @@
-NAME = a.out
+NAME = ircserv
 
 CXX = c++
 CXXFLAGS = -Wall -Wextra -Werror -std=c++98
 
-SRCS = src/Server.cpp
+SRCS = src/main.cpp \
+       src/Server.cpp \
+       src/Client.cpp\
 
 OBJS = $(SRCS:.cpp=.o)
 

@@ -34,9 +34,15 @@ class Server
         void initServer();
         void run();
         void acceptClient();
+
+        // Bir client'tan veri okur, buffer'a ekler ve tam satırları ayıklar.
         void receiveFromClient(int fd);
+
+        // Client'ı poll listesinden ve map'ten temizler.
         void removeClient(int fd);
 
+        // Client buffer içinden tamamlanmış satırları çıkarır.
+        // \r\n ve \n sonlandırıcılarını destekler.
         std::vector<std::string> extractLines(Client& client);
 };
 
