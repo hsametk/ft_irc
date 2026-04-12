@@ -1,4 +1,8 @@
 #include "../include/Server.hpp"
+#include <cerrno>
+#include <cstring>
+
+#define MAX_BUFFER_SIZE 8192
 
 bool Server::_running = true;
 
@@ -20,8 +24,68 @@ Server::Server(int port, const std::string &password)
     }
 }
 
-Server::~Server()
+void Server::receiveFromClient(int fd)
 {
+    char rawBuffer[512];
+    ssize_t bytesRead;
+    std::map<int, Client>::iterator it;
+
+    std::memset(rawBuffer, 0, sizeof(rawBuffer));
+    bytesRead = recv(fd, rawBuffer, sizeof(rawBuffer), 0);
+
+    if (bytesRead == 0)
+    {
+        std::cout << "Client disconnected: fd=" << fd << std::endl;
+        removeClient(fd);
+        return;
+    }
+
+    if (bytesRead < 0)
+    {
+        if (errno == EAGAIN || errno == EWOULDBLOCK)
+            return;
+
+        std::cerr << "recv() error on fd " << fd << std::endl;
+        removeClient(fd);
+        return;
+    }
+
+    it = _clients.find(fd);
+
+    // Client bu sırada silinmiş olabilir.
+    if (it == _clients.end())
+        return;
+
+    // Gelen veriyi doğrudan parse etmiyoruz.
+    // Önce ilgili client'ın buffer'ına ekliyoruz.
+    it->second.appendToBuffer(std::string(rawBuffer, bytesRead));
+
+    // Buffer aşırı büyürse bağlantıyı kapat.
+    if (it->second.getBuffer().size() > MAX_BUFFER_SIZE)
+    {
+        std::cerr << "Buffer overflow, dropping client fd=" << fd << std::endl;
+        removeClient(fd);
+        return;
+    }
+
+    std::vector<std::string> lines = extractLines(it->second);
+
+    for (size_t i = 0; i < lines.size(); ++i)
+    {
+        // Boş satırları atla.
+        if (lines[i].empty())
+            continue;
+
+        std::cout << "[CLIENT " << fd << "] -> " << lines[i] << std::endl;
+
+        // Burada daha sonra parser / command handler çağrılabilir.
+    }
+}
+
+void Server::removeClient(int fd)
+{
+    for (size_t i = 0; i < _pfds.size(); ++i)
+=======
     // Close all client sockets
     for (size_t i = 0; i < _pfds.size(); i++)
         close(_pfds[i].fd);
@@ -135,56 +199,49 @@ void Server::acceptClient()
     _clients[clientFd] = Client(clientFd);
     std::cout << "New client connected: fd=" << clientFd << "\n";
 }
-// Private: Read From Client
-void Server::receiveFromClient(int fd)
+std::vector<std::string> Server::extractLines(Client& client)
 {
-    // Receive data from client
-    char    buf[512];
-    ssize_t bytes;
-    
-    bytes = recv(fd, buf, sizeof(buf) - 1, 0);
-    // Check if client disconnected
-    if (bytes <= 0)
-    {
-        // Print error message
-        if (bytes == 0)
-            std::cout << "Client fd=" << fd << " disconnected.\n";
-        else
-            // Print error message
-            std::cerr << "Error: recv() failed on fd=" << fd << "\n";
-        // Remove client
-        removeClient(fd);
-        return;
-    }
-    buf[bytes] = '\0';
-    // Append data to client buffer
-    _clients[fd].appendToBuffer(buf);
-    // Extract and log complete commands (split by \r\n)
-    std::string &buffer = _clients[fd].getBuffer();
-    size_t pos;
-    while ((pos = buffer.find("\r\n")) != std::string::npos)
-    {
-        std::string line = buffer.substr(0, pos);
-        buffer.erase(0, pos + 2);
-        if (!line.empty())
-            std::cout << "[fd=" << fd << "] cmd: " << line << "\n";
-    }
-}
-// Private: Remove Client
-void Server::removeClient(int fd)
-{
-    close(fd);
-    _clients.erase(fd);
+    std::vector<std::string> lines;
+    std::string& buffer = client.getBuffer();
 
-    // Remove from _pfds vector
-    for (size_t i = 0; i < _pfds.size(); i++)
+    while (true)
     {
-        if (_pfds[i].fd == fd)
-        {
-            _pfds.erase(_pfds.begin() + i);
+        // Önce IRC standardındaki \r\n sonlandırıcısını arıyoruz.
+        size_t crlfPos = buffer.find("\r\n");
+
+        // Bazı testlerde veya basit client'larda sadece \n gelebilir.
+        size_t lfPos = buffer.find('\n');
+
+        if (crlfPos == std::string::npos && lfPos == std::string::npos)
             break;
+
+        size_t cutPos;
+        size_t delimiterLength;
+
+        if (crlfPos != std::string::npos && (lfPos == std::string::npos || crlfPos < lfPos))
+        {
+            cutPos = crlfPos;
+            delimiterLength = 2;
         }
+        else
+        {
+            cutPos = lfPos;
+            delimiterLength = 1;
+        }
+
+        std::string line = buffer.substr(0, cutPos);
+
+        // Satır başında gereksiz \r kalmışsa temizle.
+        if (!line.empty() && line[0] == '\r')
+            line.erase(0, 1);
+
+        lines.push_back(line);
+
+        // İşlenen kısmı buffer'dan sil.
+        buffer.erase(0, cutPos + delimiterLength);
     }
+
+    return lines;
 }
 // Private: Add fd to poll set
 void Server::addPollFd(int fd)
@@ -196,4 +253,5 @@ void Server::addPollFd(int fd)
     pfd.revents = 0;
     // Add fd to poll set
     _pfds.push_back(pfd);
+>>>>>>> origin/main
 }
