@@ -85,7 +85,6 @@ void Server::receiveFromClient(int fd)
 void Server::removeClient(int fd)
 {
     for (size_t i = 0; i < _pfds.size(); ++i)
-=======
     // Close all client sockets
     for (size_t i = 0; i < _pfds.size(); i++)
         close(_pfds[i].fd);
@@ -253,5 +252,4 @@ void Server::addPollFd(int fd)
     pfd.revents = 0;
     // Add fd to poll set
     _pfds.push_back(pfd);
->>>>>>> origin/main
 }
