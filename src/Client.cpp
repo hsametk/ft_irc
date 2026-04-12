@@ -46,7 +46,7 @@ const std::string& Client::getBuffer() const
 {
     return _buffer;
 }
-void Client::appendToBuffer(const std::string &data)
+std::string& Client::getBuffer()
 {
-    _buffer += data;
+    return _buffer;
 }

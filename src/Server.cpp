@@ -24,6 +24,15 @@ Server::Server(int port, const std::string &password)
     }
 }
 
+Server::~Server()
+{
+    for (std::map<int, Client>::iterator it = _clients.begin(); it != _clients.end(); ++it)
+        close(it->first);
+    if (_serverFd != -1)
+        close(_serverFd);
+    std::cout << "Server shut down cleanly.\n";
+}
+
 void Server::receiveFromClient(int fd)
 {
     char rawBuffer[512];
@@ -84,6 +93,8 @@ void Server::receiveFromClient(int fd)
 
 void Server::removeClient(int fd)
 {
+    //TODO::Çalışması için yazdım.
+    (void)fd;
     for (size_t i = 0; i < _pfds.size(); ++i)
     // Close all client sockets
     for (size_t i = 0; i < _pfds.size(); i++)

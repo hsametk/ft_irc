@@ -19,6 +19,8 @@ class Client
     public:
         Client();
         Client(int fd);
+        Client(const Client &other);
+        Client &operator=(const Client &other);
         ~Client();
 
         // Client socket fd bilgisini döndürür.
