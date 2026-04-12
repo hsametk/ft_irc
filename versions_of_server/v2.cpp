@@ -33,24 +33,28 @@ int main()
         std::cerr << "Error listening\n";
         return 1;
     }
-
+    // pollfd array for clients
     pollfd pfds[1024];
+    // add server socket to pollfd array
     pfds[0].fd = socket_fd;
+    // listen for input events
     pfds[0].events = POLLIN;
-
+    // number of file descriptors in pfds
     int nfds = 1;
 
     while (true)
     {
+        // wait for events
         int poll_count = poll(pfds, nfds, -1);
         if (poll_count == -1)
         {
             std::cerr << "Poll error\n";
             break;
         }
-
+        // check which fds have events
         for (int i = 0; i < nfds; i++)
         {
+            // check for input events
             if (pfds[i].revents & POLLIN)
             {
                 // NEW CONNECTION

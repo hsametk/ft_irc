@@ -2,6 +2,7 @@
 #define CLIENT_HPP
 
 #include <string>
+
 class Client
 {
 private:
@@ -10,19 +11,17 @@ private:
     std::string _username;
     bool        _registered;
     std::string _buffer;
+
 public:
-    int getFd() const;
-    void appendToBuffer(const std::string& data);
-    std::string& getBuffer();
+    Client();
+    Client(int fd);
+    Client(const Client &other);
+    Client &operator=(const Client &other);
+    ~Client();
+
+    int          getFd() const;
+    std::string &getBuffer();
+    void         appendToBuffer(const std::string &data);
 };
-
-Client::Client(/* args */)
-{
-}
-
-Client::~Client()
-{
-}
-
 
 #endif
