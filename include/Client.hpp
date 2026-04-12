@@ -35,6 +35,7 @@ class Client
 
         // Sadece okumalık const erişim sağlar.
         const std::string& getBuffer() const;
+
 };
 
 #endif
