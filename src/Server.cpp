@@ -1,4 +1,5 @@
 #include "../include/Server.hpp"
+#include "../include/Auth.hpp"
 #include <cerrno>
 #include <cstring>
 
@@ -86,20 +87,30 @@ void Server::receiveFromClient(int fd)
             continue;
 
         std::cout << "[CLIENT " << fd << "] -> " << lines[i] << std::endl;
-
-        // Burada daha sonra parser / command handler çağrılabilir.
+        // Auth / Command routing
+        if (handle_client_message(it->second, lines[i], _password, _clients))
+        {
+            removeClient(fd);
+            return;
+        }
     }
 }
 
 void Server::removeClient(int fd)
 {
-    //TODO::Çalışması için yazdım.
-    (void)fd;
+    // Poll setinden çıkar.
     for (size_t i = 0; i < _pfds.size(); ++i)
-    // Close all client sockets
-    for (size_t i = 0; i < _pfds.size(); i++)
-        close(_pfds[i].fd);
-    std::cout << "Server shut down.\n";
+    {
+        if (_pfds[i].fd == fd)
+        {
+            _pfds.erase(_pfds.begin() + i);
+            break;
+        }
+    }
+    // Soketi kapat ve clients map'inden sil.
+    close(fd);
+    _clients.erase(fd);
+    std::cout << "Client removed: fd=" << fd << std::endl;
 }
 // Signal Handler
 void Server::signalHandler(int signum)
