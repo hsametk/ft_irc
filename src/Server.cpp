@@ -41,7 +41,18 @@ void Server::receiveFromClient(int fd)
     std::map<int, Client>::iterator it;
 
     std::memset(rawBuffer, 0, sizeof(rawBuffer));
-    bytesRead = recv(fd, rawBuffer, sizeof(rawBuffer), 0);
+    bytesRead = recv(fd, rawBuffer, sizeof(rawBuffer) - 1, 0); // null terminate için -1
+
+    if (bytesRead > 0)
+    {
+        std::cout << "[DEBUG RAW " << fd << "] received " << bytesRead << " bytes: \"";
+        for (ssize_t i = 0; i < bytesRead; ++i) {
+            if (rawBuffer[i] == '\r') std::cout << "\\r";
+            else if (rawBuffer[i] == '\n') std::cout << "\\n";
+            else std::cout << rawBuffer[i];
+        }
+        std::cout << "\"" << std::endl;
+    }
 
     if (bytesRead == 0)
     {
@@ -88,7 +99,7 @@ void Server::receiveFromClient(int fd)
 
         std::cout << "[CLIENT " << fd << "] -> " << lines[i] << std::endl;
         // Auth / Command routing
-        if (handle_client_message(it->second, lines[i], _password, _clients))
+        if (handle_client_message(it->second, lines[i], _password, _clients, *this))
         {
             removeClient(fd);
             return;
@@ -274,4 +285,14 @@ void Server::addPollFd(int fd)
     pfd.revents = 0;
     // Add fd to poll set
     _pfds.push_back(pfd);
+}
+
+// --- JOIN ---
+// client'\u0131 params'daki kanal(lar)a kat\u0131\u015ft\u0131r\u0131r.
+// params format\u0131: "#kanal1,#kanal2" veya "#kanal \u015fifre"
+void Server::joinChannel(Client &client, const std::string &params)
+{
+    // TODO: JOIN implementasyonu buraya gelecek
+    (void)client;
+    (void)params;
 }

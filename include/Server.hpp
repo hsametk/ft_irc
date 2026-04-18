@@ -41,11 +41,17 @@ private:
     // Client buffer içinden tamamlanmış satırları çıkarır.
     // \r\n ve \n sonlandırıcılarını destekler.
     std::vector<std::string> extractLines(Client& client);
+    std::map<std::string, Channel> _channels;
 
 public:
     Server(int port, const std::string &password);
     ~Server();
     void    run();
+
+    // --- Kanal Komutları ---
+    // client'ı params'da belirtilen kanala(lara) katıştırır.
+    // params: "#kanal1,#kanal2 şifre1,şifre2" formatını destekler.
+    void joinChannel(Client& client, const std::string& params);
 };
 
 #endif

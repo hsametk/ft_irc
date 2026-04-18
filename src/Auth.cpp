@@ -120,10 +120,10 @@ void registration_state(Client &client, const std::string &line,
     }
 }
 
-// Kayitli client'tan gelen bir IRC satirini isle.
-// Baginlantinin kesilmesi gerekiyorsa true doner (ornegin QUIT).
+// Kayıtlı client'tan gelen bir IRC satırını isle.
+// Bagintinin kesilmesi gerekiyorsa true doner (ornegin QUIT).
 bool dispatch_command(Client &client, const std::string &line,
-                      std::map<int, Client> &clients)
+                      std::map<int, Client> &clients, Server &server)
 {
     (void)clients; // Henuz kullanilanmayan parametreleri susturur
 
@@ -163,7 +163,7 @@ bool dispatch_command(Client &client, const std::string &line,
 
     // --- QUIT ---
     // Client baglantisini temiz kapatmak istiyor.
-    if (command == "/")
+    if (command == "QUIT")
     {
         std::string reason = params.empty() ? "Client quit" : params;
         // ':' ile baslayan trailing parametreyi soy.
@@ -176,6 +176,11 @@ bool dispatch_command(Client &client, const std::string &line,
     }
 
     // --- TODO: JOIN, PART, PRIVMSG, NOTICE, MODE, TOPIC, KICK, INVITE ---
+    if (command == "JOIN")
+    {
+        server.joinChannel(client, params);
+        return false;
+    }
 
     // Bilinmeyen komut -> 421 ERR_UNKNOWNCOMMAND
     client.sendMessage(":ircserv 421 " + client.getNickname()
@@ -185,7 +190,7 @@ bool dispatch_command(Client &client, const std::string &line,
 
 bool handle_client_message(Client &client, const std::string &line,
                            const std::string &serverPassword,
-                           std::map<int, Client> &clients)
+                           std::map<int, Client> &clients, Server &server)
 {
     if (!client.isRegistered())
     {
@@ -194,5 +199,5 @@ bool handle_client_message(Client &client, const std::string &line,
     }
     
     // Kayıtlıysa normal komut işlemeye gönder
-    return dispatch_command(client, line, clients);
+    return dispatch_command(client, line, clients, server);
 }
