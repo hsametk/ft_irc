@@ -117,7 +117,7 @@ static void send_welcome(Client &client)
 
 void registration_state(Client &client, const std::string &line,
                         const std::string &serverPassword,
-                        const std::map<int, Client> &clients)
+                        const std::map<int, Client> &clients) //zülal değiştirdim
 {
     ParsedCommand parsed = parse_line(line);
 
@@ -208,61 +208,59 @@ void registration_state(Client &client, const std::string &line,
 // Kayıtlı client'tan gelen bir IRC satırını isle.
 // Bagintinin kesilmesi gerekiyorsa true doner (ornegin QUIT).
 bool dispatch_command(Client &client, const std::string &line,
-                      std::map<int, Client> &clients, Server &server)
+                      std::map<int, Client> &clients, Server &server) //zülal değiştirdim
 {
-    (void)clients; // Henuz kullanilanmayan parametreleri susturur
+    (void)clients;
 
-    std::string command;
+    ParsedCommand parsed = parse_line(line);
+
+    if (parsed.command.empty())
+        return false;
+
+    std::string command = parsed.command;
+    std::vector<std::string> args = parsed.args;
+
     std::string params;
-
-    size_t spacePos = line.find(' ');
-    if (spacePos != std::string::npos)
+    for (size_t i = 0; i < args.size(); ++i)
     {
-        command = line.substr(0, spacePos);
-        params  = line.substr(spacePos + 1);
-        // Sondaki bosluk/CR temizle
-        size_t end = params.size();
-        while (end > 0 && (params[end - 1] == ' ' || params[end - 1] == '\r'))
-            --end;
-        params = params.substr(0, end);
-    }
-    else
-    {
-        command = line;
-        // Sondaki CR temizle
-        size_t end = command.size();
-        while (end > 0 && (command[end - 1] == ' ' || command[end - 1] == '\r'))
-            --end;
-        command = command.substr(0, end);
-        params  = "";
+        if (i > 0)
+            params += " ";
+        params += args[i];
     }
 
     // --- PING ---
-    // Server'in hayatta oldugunu dogrulamak icin client periyodik PING gonderir.
-    // RFC 2812: cevap PONG :token olmali.
     if (command == "PING")
     {
-        client.sendMessage(":ircserv PONG ircserv :" + params + "\r\n");
+        if (args.empty())
+            client.sendMessage(":ircserv 409 " + client.getNickname() + " :No origin specified\r\n");
+        else
+            client.sendMessage(":ircserv PONG ircserv :" + params + "\r\n");
         return false;
     }
 
     // --- QUIT ---
-    // Client baglantisini temiz kapatmak istiyor.
     if (command == "QUIT")
     {
         std::string reason = params.empty() ? "Client quit" : params;
-        // ':' ile baslayan trailing parametreyi soy.
+
         if (!reason.empty() && reason[0] == ':')
             reason = reason.substr(1);
+
         client.sendMessage(":ircserv ERROR :Closing connection (" + reason + ")\r\n");
         std::cout << "QUIT from fd=" << client.getFd()
                   << " reason: " << reason << std::endl;
-        return true; // Caller removeClient() cagirsin
+        return true;
     }
 
-    // --- TODO: JOIN, PART, PRIVMSG, NOTICE, MODE, TOPIC, KICK, INVITE ---
+    // --- JOIN ---
     if (command == "JOIN")
     {
+        if (args.empty())
+        {
+            client.sendMessage(":ircserv 461 " + client.getNickname() + " JOIN :Not enough parameters\r\n");
+            return false;
+        }
+
         server.joinChannel(client, params);
         return false;
     }
@@ -275,14 +273,13 @@ bool dispatch_command(Client &client, const std::string &line,
 
 bool handle_client_message(Client &client, const std::string &line,
                            const std::string &serverPassword,
-                           std::map<int, Client> &clients, Server &server)
+                           std::map<int, Client> &clients, Server &server) //zülal ekledi
 {
     if (!client.isRegistered())
     {
         registration_state(client, line, serverPassword, clients);
-        return false; // Kayıt sırasında (henüz) hemen bağlantı kopartma yapmıyoruz
+        return false;
     }
-    
-    // Kayıtlıysa normal komut işlemeye gönder
+
     return dispatch_command(client, line, clients, server);
 }
