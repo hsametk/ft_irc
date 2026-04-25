@@ -1,4 +1,6 @@
 #include "include/Server.hpp"
+#include <cstdlib>
+
 
 void check_args(int argc, char *argv[], int &port, std::string &password)
 {
