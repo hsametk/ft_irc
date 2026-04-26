@@ -77,3 +77,6 @@ void Client::setRegistered(bool v){ _registered = v; }
 
 const std::string& Client::getNickname() const { return _nickname; }
 void Client::setNickname(const std::string& nick) { _nickname = nick; }
+
+const std::string& Client::getUsername() const { return _username; }
+void Client::setUsername(const std::string& user) { _username = user; }

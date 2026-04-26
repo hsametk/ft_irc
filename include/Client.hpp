@@ -43,6 +43,9 @@ class Client
         // Nickname getter/setter
         const std::string& getNickname() const;
         void               setNickname(const std::string& nick);
+        // Username getter/setter
+        const std::string& getUsername() const;
+        void               setUsername(const std::string& user);
         // Gelen veriyi client buffer'ına ekler.
         void appendToBuffer(const std::string& data);
         // Buffer üzerinde değişiklik yapabilmek için referans döndürür.

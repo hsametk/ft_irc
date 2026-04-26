@@ -175,10 +175,18 @@ bool dispatch_command(Client &client, const std::string &line,
         return true; // Caller removeClient() cagirsin
     }
 
-    // --- TODO: JOIN, PART, PRIVMSG, NOTICE, MODE, TOPIC, KICK, INVITE ---
+    // --- TODO: PART, PRIVMSG, NOTICE, MODE, TOPIC, KICK, INVITE ---
     if (command == "JOIN")
     {
         server.joinChannel(client, params);
+        return false;
+    }
+
+    // --- PART ---
+    // Client bir kanaldan ayrılmak istiyor.
+    if (command == "PART")
+    {
+        server.partChannel(client, params);
         return false;
     }
 

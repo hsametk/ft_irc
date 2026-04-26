@@ -18,6 +18,14 @@
 #include "Channel.hpp"
 
 #define MAX_CLIENTS 1024
+#define MAX_BUFFER_SIZE 8192
+
+// IRC Error codes
+#define ERR_NOSUCHCHANNEL    403
+#define ERR_USERONCHANNEL    443
+#define ERR_BADCHANNELKEY    475
+#define ERR_INVITEONLYCHAN   473
+#define ERR_CHANNELISFULL    471
 
 class Server
 {
@@ -52,6 +60,11 @@ public:
     // client'ı params'da belirtilen kanala(lara) katıştırır.
     // params: "#kanal1,#kanal2 şifre1,şifre2" formatını destekler.
     void joinChannel(Client& client, const std::string& params);
+    // client'ı params'da belirtilen kanaldan çıkarır.
+    // params: "#kanal :ayrılma mesajı" formatını destekler.
+    void partChannel(Client& client, const std::string& params);
+    // Client'a hata mesajı gönderir.
+    void sendError(Client& client, int code, const std::string& msg);
 };
 
 #endif

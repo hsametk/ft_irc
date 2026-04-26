@@ -6,7 +6,11 @@ CXXFLAGS = -Wall -Wextra -Werror -std=c++98
 SRCS    = main.cpp \
           src/Server.cpp \
           src/Client.cpp \
-		  src/Auth.cpp
+		  src/Auth.cpp \
+		  src/Channel.cpp \
+		  src/ServerInit.cpp \
+		  src/ServerLoop.cpp \
+		  src/ServerClient.cpp
 
 OBJS    = $(SRCS:.cpp=.o)
 
