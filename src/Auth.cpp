@@ -3,14 +3,84 @@
 #include <iostream>
 #include <map>
 
-// Params string'inden sondaki \r veya boşlukları temizler
-static std::string trim(const std::string &s)
+std::string normalize_spaces(const std::string &line) //zülal
 {
-    size_t end = s.size();
-    while (end > 0 && (s[end - 1] == '\r' || s[end - 1] == ' '))
-        --end;
-    return s.substr(0, end);
+    std::string result;
+    bool inSpace = false;
+
+    for (size_t i = 0; i < line.size(); ++i)
+    {
+        if (line[i] == ' ' || line[i] == '\t' || line[i] == '\r')
+        {
+            if (!inSpace)
+            {
+                result += ' ';
+                inSpace = true;
+            }
+        }
+        else
+        {
+            result += line[i];
+            inSpace = false;
+        }
+    }
+
+    if (!result.empty() && result[0] == ' ')
+        result.erase(0, 1);
+
+    if (!result.empty() && result[result.size() - 1] == ' ')
+        result.erase(result.size() - 1);
+
+    return result;
 }
+
+ParsedCommand parse_line(const std::string &line) //zülal
+{
+    ParsedCommand parsed;
+    std::string normalized = normalize_spaces(line);
+
+    if (normalized.empty())
+        return parsed;
+
+    size_t pos = normalized.find(' ');
+
+    if (pos == std::string::npos)
+    {
+        parsed.command = normalized;
+        return parsed;
+    }
+
+    parsed.command = normalized.substr(0, pos);
+
+    std::string rest = normalized.substr(pos + 1);
+    size_t start = 0;
+
+    while (start < rest.size())
+    {
+        size_t space = rest.find(' ', start);
+
+        if (space == std::string::npos)
+        {
+            parsed.args.push_back(rest.substr(start));
+            break;
+        }
+
+        parsed.args.push_back(rest.substr(start, space - start));
+        start = space + 1;
+    }
+
+    return parsed;
+}
+
+
+// Params string'inden sondaki \r veya boşlukları temizler
+// static std::string trim(const std::string &s)
+// {
+//     size_t end = s.size();
+//     while (end > 0 && (s[end - 1] == '\r' || s[end - 1] == ' '))
+//         --end;
+//     return s.substr(0, end);
+// }
 
 // clients map'inde istenen nick kullanımda mı? (kendisi hariç)
 static bool isNickInUse(const std::map<int, Client> &clients,
@@ -47,68 +117,83 @@ static void send_welcome(Client &client)
 
 void registration_state(Client &client, const std::string &line,
                         const std::string &serverPassword,
-                        const std::map<int, Client> &clients)
+                        const std::map<int, Client> &clients) //zülal değiştirdim
 {
-    std::string command;
-    std::string params;
+    ParsedCommand parsed = parse_line(line);
 
-    size_t spacePos = line.find(' ');
-    if (spacePos != std::string::npos)
-    {
-        command = trim(line.substr(0, spacePos));
-        params  = trim(line.substr(spacePos + 1));
-    }
-    else
-    {
-        command = trim(line);
-        params  = "";
-    }
+    if (parsed.command.empty())
+        return;
+
+    std::string command = parsed.command;
+    std::vector<std::string> args = parsed.args;
+
+    // Debug: parser kontrolü
+    std::cout << "[PARSED] CMD=" << command << std::endl;
+    for (size_t i = 0; i < args.size(); ++i)
+        std::cout << "[PARSED] ARG[" << i << "]=" << args[i] << std::endl;
 
     // CAP: irssi capability müzakeresi
     if (command == "CAP")
     {
-        if (params.substr(0, 2) == "LS")
+        if (!args.empty() && args[0] == "LS")
             client.sendMessage(":ircserv CAP * LS :\r\n");
         return;
     }
 
     if (command == "PASS")
     {
-        if (params == serverPassword)
+        if (args.empty())
+        {
+            client.sendMessage(":ircserv 461 * PASS :Not enough parameters\r\n");
+            return;
+        }
+
+        if (args[0] == serverPassword)
         {
             client.setPassOk(true);
             std::cout << "PASS accepted for fd=" << client.getFd() << std::endl;
         }
         else
         {
+            client.sendMessage(":ircserv 464 * :Password incorrect\r\n");
             std::cerr << "Wrong password from fd=" << client.getFd() << std::endl;
-            // TODO: 464 ERR_PASSWDMISMATCH gönder
         }
     }
     else if (command == "NICK")
     {
-        if (params.empty())
+        if (args.empty())
         {
-            // 431 ERR_NONICKNAMEGIVEN
             client.sendMessage(":ircserv 431 * :No nickname given\r\n");
             return;
         }
-        if (isNickInUse(clients, params, client.getFd()))
+
+        if (isNickInUse(clients, args[0], client.getFd()))
         {
-            // 433 ERR_NICKNAMEINUSE
-            client.sendMessage(":ircserv 433 * " + params + " :Nickname is already in use\r\n");
-            std::cerr << "Nick '" << params << "' already in use, rejected fd="
+            client.sendMessage(":ircserv 433 * " + args[0] + " :Nickname is already in use\r\n");
+            std::cerr << "Nick '" << args[0] << "' already in use, rejected fd="
                       << client.getFd() << std::endl;
             return;
         }
-        client.setNickname(params);
+
+        client.setNickname(args[0]);
         client.setNickSet(true);
-        std::cout << "NICK set: " << params << " for fd=" << client.getFd() << std::endl;
+        std::cout << "NICK set: " << args[0] << " for fd=" << client.getFd() << std::endl;
     }
     else if (command == "USER")
     {
+        if (args.size() < 4)
+        {
+            client.sendMessage(":ircserv 461 * USER :Not enough parameters\r\n");
+            return;
+        }
+
         client.setUserSet(true);
-        std::cout << "USER set: " << params << std::endl;
+        std::cout << "USER set: " << args[0] << std::endl;
+    }
+    else
+    {
+        client.sendMessage(":ircserv 421 * " + command + " :Unknown command\r\n");
+        return;
     }
 
     // Üç koşul da sağlandı mı? -> kayıt tamamlandı
@@ -123,70 +208,60 @@ void registration_state(Client &client, const std::string &line,
 // Kayıtlı client'tan gelen bir IRC satırını isle.
 // Bagintinin kesilmesi gerekiyorsa true doner (ornegin QUIT).
 bool dispatch_command(Client &client, const std::string &line,
-                      std::map<int, Client> &clients, Server &server)
+                      std::map<int, Client> &clients, Server &server) //zülal değiştirdim
 {
-    (void)clients; // Henuz kullanilanmayan parametreleri susturur
+    (void)clients;
 
-    std::string command;
+    ParsedCommand parsed = parse_line(line);
+
+    if (parsed.command.empty())
+        return false;
+
+    std::string command = parsed.command;
+    std::vector<std::string> args = parsed.args;
+
     std::string params;
-
-    size_t spacePos = line.find(' ');
-    if (spacePos != std::string::npos)
+    for (size_t i = 0; i < args.size(); ++i)
     {
-        command = line.substr(0, spacePos);
-        params  = line.substr(spacePos + 1);
-        // Sondaki bosluk/CR temizle
-        size_t end = params.size();
-        while (end > 0 && (params[end - 1] == ' ' || params[end - 1] == '\r'))
-            --end;
-        params = params.substr(0, end);
-    }
-    else
-    {
-        command = line;
-        // Sondaki CR temizle
-        size_t end = command.size();
-        while (end > 0 && (command[end - 1] == ' ' || command[end - 1] == '\r'))
-            --end;
-        command = command.substr(0, end);
-        params  = "";
+        if (i > 0)
+            params += " ";
+        params += args[i];
     }
 
     // --- PING ---
-    // Server'in hayatta oldugunu dogrulamak icin client periyodik PING gonderir.
-    // RFC 2812: cevap PONG :token olmali.
     if (command == "PING")
     {
-        client.sendMessage(":ircserv PONG ircserv :" + params + "\r\n");
+        if (args.empty())
+            client.sendMessage(":ircserv 409 " + client.getNickname() + " :No origin specified\r\n");
+        else
+            client.sendMessage(":ircserv PONG ircserv :" + params + "\r\n");
         return false;
     }
 
     // --- QUIT ---
-    // Client baglantisini temiz kapatmak istiyor.
     if (command == "QUIT")
     {
         std::string reason = params.empty() ? "Client quit" : params;
-        // ':' ile baslayan trailing parametreyi soy.
+
         if (!reason.empty() && reason[0] == ':')
             reason = reason.substr(1);
+
         client.sendMessage(":ircserv ERROR :Closing connection (" + reason + ")\r\n");
         std::cout << "QUIT from fd=" << client.getFd()
                   << " reason: " << reason << std::endl;
-        return true; // Caller removeClient() cagirsin
+        return true;
     }
 
-    // --- TODO: PART, PRIVMSG, NOTICE, MODE, TOPIC, KICK, INVITE ---
+    // --- JOIN ---
     if (command == "JOIN")
     {
-        server.joinChannel(client, params);
-        return false;
-    }
+        if (args.empty())
+        {
+            client.sendMessage(":ircserv 461 " + client.getNickname() + " JOIN :Not enough parameters\r\n");
+            return false;
+        }
 
-    // --- PART ---
-    // Client bir kanaldan ayrılmak istiyor.
-    if (command == "PART")
-    {
-        server.partChannel(client, params);
+        server.joinChannel(client, params);
         return false;
     }
 
@@ -198,14 +273,13 @@ bool dispatch_command(Client &client, const std::string &line,
 
 bool handle_client_message(Client &client, const std::string &line,
                            const std::string &serverPassword,
-                           std::map<int, Client> &clients, Server &server)
+                           std::map<int, Client> &clients, Server &server) //zülal ekledi
 {
     if (!client.isRegistered())
     {
         registration_state(client, line, serverPassword, clients);
-        return false; // Kayıt sırasında (henüz) hemen bağlantı kopartma yapmıyoruz
+        return false;
     }
-    
-    // Kayıtlıysa normal komut işlemeye gönder
+
     return dispatch_command(client, line, clients, server);
 }

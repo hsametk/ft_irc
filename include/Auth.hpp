@@ -6,6 +6,19 @@
 #include "Client.hpp"
 #include "Server.hpp"
 
+struct ParsedCommand //zülal
+{
+    std::string command;
+    std::vector<std::string> args;
+};
+
+// Line içindeki fazla boşlukları normalize eder.  //zülal
+std::string normalize_spaces(const std::string &line);
+
+// IRC satırını command + args olarak parçalar.  //zülal
+ParsedCommand parse_line(const std::string &line);
+
+
 // Kayıtsız client'tan gelen bir IRC satırını işler (PASS, NICK, USER, CAP).
 void registration_state(Client &client, const std::string &line,
                         const std::string &serverPassword,
