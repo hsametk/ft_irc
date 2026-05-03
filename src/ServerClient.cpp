@@ -185,3 +185,78 @@ void Server::partChannel(Client& client, const std::string& params)
 
     std::cout << "PART: " << client.getNickname() << " left " << channelName << std::endl;
 }
+
+
+
+// --- TOPIC ---
+// IRC TOPIC komutunu işler.
+// Kullanım:
+//   TOPIC #kanal            -> topic görüntüleme
+//   TOPIC #kanal :yeni konu -> topic değiştirme
+/* Mevcut ServerClient.cpp içinde JOIN/PART zaten var; bu fonksiyon sadece _channels map’ini kullanıyor, JOIN implementasyonuna dokunmuyor.
+*/
+void Server::topicCommand(Client& client, const std::string& params)
+{
+    std::string channelName;
+    std::string newTopic;
+
+    size_t spacePos = params.find(' ');
+    if (spacePos != std::string::npos)
+    {
+        channelName = params.substr(0, spacePos);
+        newTopic = params.substr(spacePos + 1);
+
+        if (!newTopic.empty() && newTopic[0] == ':')
+            newTopic = newTopic.substr(1);
+    }
+    else
+    {
+        channelName = params;
+        newTopic = "";
+    }
+
+    if (channelName.empty())
+    {
+        client.sendMessage(":ircserv 461 " + client.getNickname() + " TOPIC :Not enough parameters\r\n");
+        return;
+    }
+
+    std::map<std::string, Channel>::iterator it = _channels.find(channelName);
+    if (it == _channels.end())
+    {
+        sendError(client, ERR_NOSUCHCHANNEL, channelName + " :No such channel");
+        return;
+    }
+
+    if (!it->second.hasMember(client.getFd()))
+    {
+        client.sendMessage(":ircserv 442 " + client.getNickname()
+                           + " " + channelName + " :You're not on that channel\r\n");
+        return;
+    }
+
+    // Sadece görüntüleme: TOPIC #kanal
+    if (newTopic.empty())
+    {
+        if (it->second.getTopic().empty())
+        {
+            client.sendMessage(":ircserv 331 " + client.getNickname()
+                               + " " + channelName + " :No topic is set\r\n");
+        }
+        else
+        {
+            client.sendMessage(":ircserv 332 " + client.getNickname()
+                               + " " + channelName + " :" + it->second.getTopic() + "\r\n");
+        }
+        return;
+    }
+
+    // Topic değiştirme: TOPIC #kanal :Yeni topic
+    it->second.setTopic(newTopic);
+
+    std::string prefix = client.getNickname() + "!" + client.getUsername() + "@localhost";
+    std::string topicMsg = ":" + prefix + " TOPIC " + channelName + " :" + newTopic + "\r\n";
+
+    client.sendMessage(topicMsg);
+    it->second.broadcast(topicMsg, client.getFd());
+}

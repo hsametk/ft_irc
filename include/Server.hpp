@@ -2,6 +2,7 @@
 #define SERVER_HPP
 
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <vector>
 #include <map>
@@ -63,6 +64,8 @@ public:
     // client'ı params'da belirtilen kanaldan çıkarır.
     // params: "#kanal :ayrılma mesajı" formatını destekler.
     void partChannel(Client& client, const std::string& params);
+        // TOPIC komutu: kanal topic görüntüleme / değiştirme
+    void topicCommand(Client& client, const std::string& params);
     // Client'a hata mesajı gönderir.
     void sendError(Client& client, int code, const std::string& msg);
 };

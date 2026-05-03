@@ -43,6 +43,8 @@ void Server::signalHandler(int signum)
 // Send error message to client
 void Server::sendError(Client& client, int code, const std::string& msg)
 {
-    std::string errorMsg = ":ircserv " + std::to_string(code) + " " + client.getNickname() + " " + msg + "\r\n";
+    std::stringstream ss;
+    ss << code;
+    std::string errorMsg = ":ircserv " + ss.str() + " " + client.getNickname() + " " + msg + "\r\n";
     send(client.getFd(), errorMsg.c_str(), errorMsg.size(), 0);
 }

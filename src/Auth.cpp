@@ -265,6 +265,19 @@ bool dispatch_command(Client &client, const std::string &line,
         return false;
     }
 
+    // --- TOPIC ---
+    if (command == "TOPIC")
+    {
+        if (args.empty())
+        {
+            client.sendMessage(":ircserv 461 " + client.getNickname()
+                               + " TOPIC :Not enough parameters\r\n");
+            return false;
+        }
+        server.topicCommand(client, params);
+        return false;
+    }
+    
     // Bilinmeyen komut -> 421 ERR_UNKNOWNCOMMAND
     client.sendMessage(":ircserv 421 " + client.getNickname()
                        + " " + command + " :Unknown command\r\n");
