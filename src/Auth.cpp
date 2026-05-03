@@ -186,7 +186,7 @@ void registration_state(Client &client, const std::string &line,
             client.sendMessage(":ircserv 461 * USER :Not enough parameters\r\n");
             return;
         }
-
+        client.setUsername(args[0]);
         client.setUserSet(true);
         std::cout << "USER set: " << args[0] << std::endl;
     }
@@ -210,7 +210,6 @@ void registration_state(Client &client, const std::string &line,
 bool dispatch_command(Client &client, const std::string &line,
                       std::map<int, Client> &clients, Server &server) //zülal değiştirdim
 {
-    (void)clients;
 
     ParsedCommand parsed = parse_line(line);
 
@@ -252,6 +251,32 @@ bool dispatch_command(Client &client, const std::string &line,
         return true;
     }
 
+    // --- NICK ---
+    if (command == "NICK")
+    {
+        if (args.empty())
+        {
+            client.sendMessage(":ircserv 431 " + client.getNickname()
+                               + " :No nickname given\r\n");
+            return false;
+        }
+
+        if (isNickInUse(clients, args[0], client.getFd()))
+        {
+            client.sendMessage(":ircserv 433 " + client.getNickname()
+                               + " " + args[0] + " :Nickname is already in use\r\n");
+            return false;
+        }
+
+        std::string oldNick = client.getNickname();
+        client.setNickname(args[0]);
+
+        client.sendMessage(":" + oldNick + "!" + client.getUsername()
+                           + "@localhost NICK :" + args[0] + "\r\n");
+
+        return false;
+    }
+
     // --- JOIN ---
     if (command == "JOIN")
     {
@@ -262,6 +287,20 @@ bool dispatch_command(Client &client, const std::string &line,
         }
 
         server.joinChannel(client, params);
+        return false;
+    }
+
+    // --- PART ---
+    if (command == "PART")
+    {
+        if (args.empty())
+        {
+            client.sendMessage(":ircserv 461 " + client.getNickname()
+                               + " PART :Not enough parameters\r\n");
+            return false;
+        }
+
+        server.partChannel(client, params);
         return false;
     }
 
@@ -277,7 +316,7 @@ bool dispatch_command(Client &client, const std::string &line,
         server.topicCommand(client, params);
         return false;
     }
-    
+
     // Bilinmeyen komut -> 421 ERR_UNKNOWNCOMMAND
     client.sendMessage(":ircserv 421 " + client.getNickname()
                        + " " + command + " :Unknown command\r\n");
