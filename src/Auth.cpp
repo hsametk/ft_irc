@@ -1,4 +1,3 @@
-
 #include "../include/Auth.hpp"
 #include <iostream>
 #include <map>
@@ -73,15 +72,6 @@ ParsedCommand parse_line(const std::string &line) //zülal
 }
 
 
-// Params string'inden sondaki \r veya boşlukları temizler
-// static std::string trim(const std::string &s)
-// {
-//     size_t end = s.size();
-//     while (end > 0 && (s[end - 1] == '\r' || s[end - 1] == ' '))
-//         --end;
-//     return s.substr(0, end);
-// }
-
 // clients map'inde istenen nick kullanımda mı? (kendisi hariç)
 static bool isNickInUse(const std::map<int, Client> &clients,
                         const std::string &nick, int selfFd)
@@ -110,9 +100,9 @@ static void send_welcome(Client &client)
     client.sendMessage(":ft_irc 372 " + nick + " :- Welcome to your own IRC server\r\n");
     client.sendMessage(":ft_irc 372 " + nick + " :- This server is built as part of 42 ft_irc project\r\n");
     client.sendMessage(":ft_irc 372 " + nick + " :- Be respectful and have fun chatting!\r\n");
-    client.sendMessage(":ft_irc 372 " + nick + " :- Available commands: JOIN, PRIVMSG, NICK, USER\r\n");
+    client.sendMessage(":ft_irc 372 " + nick + " :- Available commands: JOIN, PRIVMSG, NICK, USER, TOPIC, INVITE\r\n");
     client.sendMessage(":ft_irc 372 " + nick + " :- Example: /join #42\r\n");
-    client.sendMessage(":ft_irc 376 " + nick + " :End of MOTDmacommand\r\n");
+    client.sendMessage(":ft_irc 376 " + nick + " :End of MOTD\r\n");
 }
 
 void registration_state(Client &client, const std::string &line,
@@ -205,12 +195,11 @@ void registration_state(Client &client, const std::string &line,
     }
 }
 
-// Kayıtlı client'tan gelen bir IRC satırını isle.
-// Bagintinin kesilmesi gerekiyorsa true doner (ornegin QUIT).
+// Kayıtlı client'tan gelen bir IRC satırını işler.
+// Bağlantının kesilmesi gerekiyorsa true döner (örn. QUIT).
 bool dispatch_command(Client &client, const std::string &line,
                       std::map<int, Client> &clients, Server &server) //zülal değiştirdim
 {
-
     ParsedCommand parsed = parse_line(line);
 
     if (parsed.command.empty())
@@ -314,6 +303,20 @@ bool dispatch_command(Client &client, const std::string &line,
             return false;
         }
         server.topicCommand(client, params);
+        return false;
+    }
+
+    // --- INVITE ---
+    if (command == "INVITE")
+    {
+        // En az iki parametre olmalı: <nick> <channel>
+        if (args.size() < 2)
+        {
+            client.sendMessage(":ircserv 461 " + client.getNickname()
+                               + " INVITE :Not enough parameters\r\n");
+            return false;
+        }
+        server.inviteCommand(client, params);
         return false;
     }
 
