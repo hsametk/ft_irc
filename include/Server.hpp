@@ -20,12 +20,15 @@
 #define MAX_CLIENTS 1024
 #define MAX_BUFFER_SIZE 8192
 
-// IRC Error codes
 #define ERR_NOSUCHCHANNEL    403
 #define ERR_USERONCHANNEL    443
 #define ERR_BADCHANNELKEY    475
 #define ERR_INVITEONLYCHAN   473
 #define ERR_CHANNELISFULL    471
+#define ERR_NOTONCHANNEL     442
+#define ERR_CHANOPRIVSNEEDED 482
+#define ERR_NEEDMOREPARAMS   461
+#define ERR_NOSUCHNICK       401
 
 class Server
 {
@@ -60,11 +63,29 @@ public:
     // client'ı params'da belirtilen kanala(lara) katıştırır.
     // params: "#kanal1,#kanal2 şifre1,şifre2" formatını destekler.
     void joinChannel(Client& client, const std::string& params);
+    // KICK komutunu işler.
+    void handleKick(Client& sender, const std::string& channelName,
+                    const std::string& targetNick, const std::string& reason);
+    // MODE komutunu işler.
+    void handleMode(Client& sender, const std::string& channelName,
+                    const std::string& modeStr,
+                    const std::vector<std::string>& modeParams);
     // client'ı params'da belirtilen kanaldan çıkarır.
     // params: "#kanal :ayrılma mesajı" formatını destekler.
     void partChannel(Client& client, const std::string& params);
     // Client'a hata mesajı gönderir.
     void sendError(Client& client, int code, const std::string& msg);
+    // PRIVMSG komutunu işler.
+    // params: "hedef :mesaj" formatındadır.
+    void sendServerMessage(Client& client, const std::string& params);
+    // JOIN sonrası RPL_NAMREPLY (353) ve RPL_ENDOFNAMES (366) gönderir.
+    void sendNamesList(Client& client, Channel& channel);
+    // NICK değişikliğini kullanıcının bulunduğu tüm kanallara duyurur.
+    // Her kullanıcıya yalnızca bir kez gönderir (deduplicate).
+    void broadcastNickChange(Client& client, const std::string& oldNick);
+    // Accessors for helpers / command handlers
+    std::map<int, Client>          &getClients()  { return _clients; }
+    std::map<std::string, Channel> &getChannels() { return _channels; }
 };
 
 #endif

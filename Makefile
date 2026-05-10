@@ -10,7 +10,10 @@ SRCS    = main.cpp \
 		  src/Channel.cpp \
 		  src/ServerInit.cpp \
 		  src/ServerLoop.cpp \
-		  src/ServerClient.cpp
+		  src/ServerClient.cpp \
+		  src/CmdHelpers.cpp \
+		  src/Kick.cpp \
+		  src/Mode.cpp
 
 OBJS    = $(SRCS:.cpp=.o)
 

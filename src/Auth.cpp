@@ -1,7 +1,9 @@
 
+#include "../include/Server.hpp"
 #include "../include/Auth.hpp"
 #include <iostream>
 #include <map>
+#include <cctype>
 
 std::string normalize_spaces(const std::string &line) //zülal
 {
@@ -10,7 +12,7 @@ std::string normalize_spaces(const std::string &line) //zülal
 
     for (size_t i = 0; i < line.size(); ++i)
     {
-        if (line[i] == ' ' || line[i] == '\t' || line[i] == '\r')
+        if (line[i] == ' ' || line[i] == '\t' || line[i] == '\r' || line[i] == '\n')
         {
             if (!inSpace)
             {
@@ -25,13 +27,11 @@ std::string normalize_spaces(const std::string &line) //zülal
         }
     }
 
-    if (!result.empty() && result[0] == ' ')
-        result.erase(0, 1);
-
-    if (!result.empty() && result[result.size() - 1] == ' ')
-        result.erase(result.size() - 1);
-
-    return result;
+    // Baştaki ve sondaki boşlukları kesin temizle
+    size_t start = result.find_first_not_of(" ");
+    if (start == std::string::npos) return "";
+    size_t end = result.find_last_not_of(" ");
+    return result.substr(start, end - start + 1);
 }
 
 ParsedCommand parse_line(const std::string &line) //zülal
@@ -51,22 +51,25 @@ ParsedCommand parse_line(const std::string &line) //zülal
     }
 
     parsed.command = normalized.substr(0, pos);
-
     std::string rest = normalized.substr(pos + 1);
-    size_t start = 0;
 
-    while (start < rest.size())
+    while (!rest.empty())
     {
-        size_t space = rest.find(' ', start);
-
-        if (space == std::string::npos)
+        if (rest[0] == ':')
         {
-            parsed.args.push_back(rest.substr(start));
+            parsed.args.push_back(rest.substr(1));
             break;
         }
-
-        parsed.args.push_back(rest.substr(start, space - start));
-        start = space + 1;
+        size_t space = rest.find(' ');
+        if (space == std::string::npos)
+        {
+            parsed.args.push_back(rest);
+            break;
+        }
+        parsed.args.push_back(rest.substr(0, space));
+        rest = rest.substr(space + 1);
+        // normalized_spaces zaten boşlukları temizlediği için 
+        // peş peşe boşluk gelmeyecektir.
     }
 
     return parsed;
@@ -82,15 +85,26 @@ ParsedCommand parse_line(const std::string &line) //zülal
 //     return s.substr(0, end);
 // }
 
-// clients map'inde istenen nick kullanımda mı? (kendisi hariç)
 static bool isNickInUse(const std::map<int, Client> &clients,
                         const std::string &nick, int selfFd)
 {
+    std::string lowerNick = nick;
+    for (size_t i = 0; i < lowerNick.size(); ++i)
+        lowerNick[i] = std::tolower(lowerNick[i]);
+
     for (std::map<int, Client>::const_iterator it = clients.begin();
          it != clients.end(); ++it)
     {
-        if (it->first != selfFd && it->second.getNickname() == nick)
-            return true;
+        if (it->first != selfFd)
+        {
+            std::string existingNick = it->second.getNickname();
+            std::string lowerExisting = existingNick;
+            for (size_t i = 0; i < lowerExisting.size(); ++i)
+                lowerExisting[i] = std::tolower(lowerExisting[i]);
+            
+            if (lowerExisting == lowerNick)
+                return true;
+        }
     }
     return false;
 }
@@ -187,12 +201,14 @@ void registration_state(Client &client, const std::string &line,
             return;
         }
 
+        client.setUsername(args[0]);
         client.setUserSet(true);
         std::cout << "USER set: " << args[0] << std::endl;
     }
     else
     {
-        client.sendMessage(":ircserv 421 * " + command + " :Unknown command\r\n");
+        // Kayıt tamamlanmadan gelen diğer komutlar için 451 ERR_NOTREGISTERED
+        client.sendMessage(":ircserv 451 * :You have not registered\r\n");
         return;
     }
 
@@ -253,6 +269,7 @@ bool dispatch_command(Client &client, const std::string &line,
     }
 
     // --- JOIN ---
+    // Çoklu kanal desteği: "JOIN #a,#b key1,key2"
     if (command == "JOIN")
     {
         if (args.empty())
@@ -261,9 +278,133 @@ bool dispatch_command(Client &client, const std::string &line,
             return false;
         }
 
-        server.joinChannel(client, params);
+        // Kanalları ve key'leri virgülle ayır.
+        std::string channelList = args[0];
+        std::string keyList = args.size() > 1 ? args[1] : "";
+
+        std::vector<std::string> channels;
+        std::vector<std::string> keys;
+
+        // Kanalları parse et
+        size_t pos = 0;
+        while (pos < channelList.size())
+        {
+            size_t comma = channelList.find(',', pos);
+            if (comma == std::string::npos)
+            {
+                channels.push_back(channelList.substr(pos));
+                break;
+            }
+            channels.push_back(channelList.substr(pos, comma - pos));
+            pos = comma + 1;
+        }
+
+        // Key'leri parse et
+        pos = 0;
+        while (pos < keyList.size())
+        {
+            size_t comma = keyList.find(',', pos);
+            if (comma == std::string::npos)
+            {
+                keys.push_back(keyList.substr(pos));
+                break;
+            }
+            keys.push_back(keyList.substr(pos, comma - pos));
+            pos = comma + 1;
+        }
+
+        // Her kanal için joinChannel çağır
+        for (size_t i = 0; i < channels.size(); ++i)
+        {
+            std::string singleParams = channels[i];
+            if (i < keys.size() && !keys[i].empty())
+                singleParams += " " + keys[i];
+            server.joinChannel(client, singleParams);
+        }
         return false;
     }
+
+    if (command == "PRIVMSG") {
+        server.sendServerMessage(client, params);
+        return false;
+    }
+
+    // --- PART ---
+    if (command == "PART")
+    {
+        if (args.empty())
+        {
+            client.sendMessage(":ircserv 461 " + client.getNickname() + " PART :Not enough parameters\r\n");
+            return false;
+        }
+        server.partChannel(client, params);
+        return false;
+    }
+
+    // --- NICK ---
+    if (command == "NICK")
+    {
+        if (args.empty())
+        {
+            client.sendMessage(":ircserv 431 " + client.getNickname() + " :No nickname given\r\n");
+            return false;
+        }
+        if (isNickInUse(clients, args[0], client.getFd()))
+        {
+            client.sendMessage(":ircserv 433 " + client.getNickname() + " " + args[0] + " :Nickname is already in use\r\n");
+            return false;
+        }
+        std::string oldNick = client.getNickname();
+        std::string newNick = args[0];
+        client.setNickname(newNick);
+
+        // Kendisine NICK değişiklik mesajı gönder.
+        std::string nickMsg = ":" + oldNick + "!" + client.getUsername()
+                            + "@localhost NICK " + newNick + "\r\n";
+        client.sendMessage(nickMsg);
+        // Ortak kanallardaki tüm kullanıcılara duyur (deduplicate edilir).
+        server.broadcastNickChange(client, oldNick);
+        return false;
+    }
+    // --- KICK ---
+    // Format: KICK #channel nick [:reason]
+    if (command == "KICK")
+    {
+        if (args.size() < 2)
+        {
+            client.sendMessage(":ircserv 461 " + client.getNickname() +
+                               " KICK :Not enough parameters\r\n");
+            return false;
+        }
+        std::string channelName = args[0];
+        std::string targetNick  = args[1];
+        // Reason: args[2] varsa kullan, yoksa varsayılan.
+        std::string reason = (args.size() >= 3) ? args[2] : "Kicked";
+        server.handleKick(client, channelName, targetNick, reason);
+        return false;
+    }
+
+
+    // --- MODE ---
+    // Format: MODE #channel <modestring> [param...]
+    if (command == "MODE")
+    {
+        if (args.size() < 2)
+        {
+            client.sendMessage(":ircserv 461 " + client.getNickname() +
+                               " MODE :Not enough parameters\r\n");
+            return false;
+        }
+        std::string channelName = args[0];
+        std::string modeStr     = args[1];
+        // args[2..] mod parametreleri (+k şifresi, +l limiti, +o nick, ...)
+        std::vector<std::string> modeParams;
+        for (size_t i = 2; i < args.size(); ++i)
+            modeParams.push_back(args[i]);
+        server.handleMode(client, channelName, modeStr, modeParams);
+        return false;
+    }
+
 
     // Bilinmeyen komut -> 421 ERR_UNKNOWNCOMMAND
     client.sendMessage(":ircserv 421 " + client.getNickname()

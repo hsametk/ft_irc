@@ -1,5 +1,4 @@
 #include "../include/Client.hpp"
-
 Client::Client() : _fd(-1), _nickname(""), _username(""), _realname(""), _passOk(false),
  _nickset(false), _userset(false), _registered(false), _buffer("")
 {
