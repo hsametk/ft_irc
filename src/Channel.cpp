@@ -25,6 +25,7 @@ void Channel::removeMember(int fd)
 {
     _members.erase(fd);
     _operators.erase(fd);
+    _invited.erase(fd);
 }
 
 bool Channel::hasMember(int fd) const
@@ -37,6 +38,21 @@ bool Channel::isOperator(int fd) const
     return _operators.find(fd) != _operators.end();
 }
 
+bool Channel::isInvited(int fd) const
+{
+    return _invited.find(fd) != _invited.end();
+}
+
+void Channel::inviteUser(int fd)
+{
+    _invited.insert(fd);
+}
+
+void Channel::removeInvited(int fd)
+{
+    _invited.erase(fd);
+}
+
 const std::map<int, Client*> &Channel::getMembers() const
 {
     return _members;
@@ -47,6 +63,19 @@ void Channel::setTopic(const std::string &topic) { _topic = topic; }
 void Channel::setKey(const std::string &key) { _key = key; }
 void Channel::setLimit(int limit) { _limit = limit; }
 void Channel::setInviteOnly(bool val) { _inviteOnly = val; }
+void Channel::setTopicOpOnly(bool val) { _topicOpOnly = val; }
+bool Channel::isTopicOpOnly() const { return _topicOpOnly; }
+
+void Channel::addOperator(int fd)
+{
+    if (hasMember(fd))
+        _operators.insert(fd);
+}
+
+void Channel::removeOperator(int fd)
+{
+    _operators.erase(fd);
+}
 
 // Broadcast message to all members except excludeFd
 void Channel::broadcast(const std::string &msg, int excludeFd) const
@@ -55,7 +84,7 @@ void Channel::broadcast(const std::string &msg, int excludeFd) const
     {
         if (it->first != excludeFd)
         {
-            send(it->first, msg.c_str(), msg.size(), 0);
+            it->second->sendMessage(msg);
         }
     }
 }
