@@ -18,7 +18,7 @@ private:
     // Client'lar Server'a ait olduğu için pointer tutuyoruz (deep copy yok)
     std::map<int, Client*>  _members;   // fd -> Client*
     std::set<int>           _operators; // operator fd'leri
-    std::set<int>           _invited;   // davet edilen fd'leri
+    std::set<int>           _invited;   // INVITE ile davet edilenler (invite-only kanallar için)
 
 public:
     Channel();
@@ -37,6 +37,15 @@ public:
     void removeMember(int fd);
     bool hasMember(int fd) const;
     bool isOperator(int fd) const;
+    bool isInvited(int fd) const;
+
+    // Operator yönetimi (KICK / MODE / INVITE için)
+    void addOperator(int fd);
+    void removeOperator(int fd);
+
+    // Invite list yönetimi (INVITE komutu için)
+    void addInvited(int fd);
+    void removeInvited(int fd);
     bool isInvited(int fd) const;
 
     const std::map<int, Client*> &getMembers() const;

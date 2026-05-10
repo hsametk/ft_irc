@@ -44,6 +44,18 @@ void Server::removeClient(int fd) {
   std::cout << "Client removed: fd=" << fd << std::endl;
 }
 
+// Verilen nick'e sahip client'ı bulur (case-sensitive). Yoksa NULL döner.
+Client* Server::findClientByNick(const std::string& nick)
+{
+    for (std::map<int, Client>::iterator it = _clients.begin();
+         it != _clients.end(); ++it)
+    {
+        if (it->second.getNickname() == nick)
+            return &it->second;
+    }
+    return NULL;
+}
+
 // --- JOIN ---
 void Server::joinChannel(Client &client, const std::string &params) {
   std::string channelName;
@@ -277,6 +289,208 @@ void Server::sendNamesList(Client &client, Channel &channel) {
     names += it->second->getNickname();
   }
 
+    std::cout << "PART: " << client.getNickname() << " left " << channelName << std::endl;
+}
+
+
+// --- TOPIC ---
+// IRC TOPIC komutunu işler.
+// Kullanım:
+//   TOPIC #kanal             -> topic görüntüleme (üye olan herkes yapabilir)
+//   TOPIC #kanal :yeni konu  -> topic değiştirme (sadece operator)
+void Server::topicCommand(Client& client, const std::string& params)
+{
+    std::string channelName;
+    std::string newTopic;
+    bool        topicGiven = false; // ":..." parametresi geldi mi?
+
+    size_t spacePos = params.find(' ');
+    if (spacePos != std::string::npos)
+    {
+        channelName = params.substr(0, spacePos);
+        newTopic = params.substr(spacePos + 1);
+        topicGiven = true;
+
+        if (!newTopic.empty() && newTopic[0] == ':')
+            newTopic = newTopic.substr(1);
+
+        // Sondaki \r temizle
+        while (!newTopic.empty() && newTopic[newTopic.size() - 1] == '\r')
+            newTopic.erase(newTopic.size() - 1);
+    }
+    else
+    {
+        channelName = params;
+        newTopic = "";
+    }
+
+    // Kanal adındaki sondaki \r veya boşluk temizle
+    while (!channelName.empty() &&
+           (channelName[channelName.size() - 1] == '\r' ||
+            channelName[channelName.size() - 1] == ' '))
+        channelName.erase(channelName.size() - 1);
+
+    if (channelName.empty())
+    {
+        client.sendMessage(":ircserv 461 " + client.getNickname()
+                           + " TOPIC :Not enough parameters\r\n");
+        return;
+    }
+
+    std::map<std::string, Channel>::iterator it = _channels.find(channelName);
+    if (it == _channels.end())
+    {
+        sendError(client, ERR_NOSUCHCHANNEL, channelName + " :No such channel");
+        return;
+    }
+
+    if (!it->second.hasMember(client.getFd()))
+    {
+        client.sendMessage(":ircserv 442 " + client.getNickname()
+                           + " " + channelName + " :You're not on that channel\r\n");
+        return;
+    }
+
+    // Sadece görüntüleme: TOPIC #kanal (yetki gerekmez, üye olmak yeter)
+    if (!topicGiven)
+    {
+        if (it->second.getTopic().empty())
+        {
+            client.sendMessage(":ircserv 331 " + client.getNickname()
+                               + " " + channelName + " :No topic is set\r\n");
+        }
+        else
+        {
+            client.sendMessage(":ircserv 332 " + client.getNickname()
+                               + " " + channelName + " :" + it->second.getTopic() + "\r\n");
+        }
+        return;
+    }
+
+    // Topic değiştirme: operator olmak gerekiyor.
+    if (!it->second.isOperator(client.getFd()))
+    {
+        client.sendMessage(":ircserv 482 " + client.getNickname()
+                           + " " + channelName
+                           + " :You're not channel operator\r\n");
+        return;
+    }
+
+    // Topic değiştir
+    it->second.setTopic(newTopic);
+
+    std::string prefix = client.getNickname() + "!" + client.getUsername() + "@localhost";
+    std::string topicMsg = ":" + prefix + " TOPIC " + channelName + " :" + newTopic + "\r\n";
+
+    client.sendMessage(topicMsg);
+    it->second.broadcast(topicMsg, client.getFd());
+}
+
+// --- INVITE ---
+// Kullanım: INVITE <nick> <channel>
+// Kontrol sırası: 461 -> 403 -> 442 -> 482 -> 401 -> 443
+// Başarılıysa: invite list'e ekle, davet edene 341, hedefe INVITE mesajı.
+void Server::inviteCommand(Client& client, const std::string& params)
+{
+    std::string nickArg;
+    std::string channelArg;
+
+    size_t spacePos = params.find(' ');
+    if (spacePos == std::string::npos)
+    {
+        nickArg = params;
+        channelArg = "";
+    }
+    else
+    {
+        nickArg = params.substr(0, spacePos);
+        channelArg = params.substr(spacePos + 1);
+        // Başta kalan boşlukları at
+        while (!channelArg.empty() && channelArg[0] == ' ')
+            channelArg.erase(0, 1);
+        // Fazla parametre verildiyse sadece ilkini al
+        size_t nextSpace = channelArg.find(' ');
+        if (nextSpace != std::string::npos)
+            channelArg = channelArg.substr(0, nextSpace);
+    }
+
+    // Sondaki \r veya boşlukları temizle
+    while (!nickArg.empty() &&
+           (nickArg[nickArg.size() - 1] == '\r' || nickArg[nickArg.size() - 1] == ' '))
+        nickArg.erase(nickArg.size() - 1);
+    while (!channelArg.empty() &&
+           (channelArg[channelArg.size() - 1] == '\r' || channelArg[channelArg.size() - 1] == ' '))
+        channelArg.erase(channelArg.size() - 1);
+
+    // 461: yetersiz parametre
+    if (nickArg.empty() || channelArg.empty())
+    {
+        client.sendMessage(":ircserv 461 " + client.getNickname()
+                           + " INVITE :Not enough parameters\r\n");
+        return;
+    }
+
+    // 403: kanal yok
+    std::map<std::string, Channel>::iterator it = _channels.find(channelArg);
+    if (it == _channels.end())
+    {
+        sendError(client, ERR_NOSUCHCHANNEL, channelArg + " :No such channel");
+        return;
+    }
+
+    // 442: davet eden kanalda değil
+    if (!it->second.hasMember(client.getFd()))
+    {
+        client.sendMessage(":ircserv 442 " + client.getNickname()
+                           + " " + channelArg + " :You're not on that channel\r\n");
+        return;
+    }
+
+    // 482: davet eden operator değil
+    if (!it->second.isOperator(client.getFd()))
+    {
+        client.sendMessage(":ircserv 482 " + client.getNickname()
+                           + " " + channelArg
+                           + " :You're not channel operator\r\n");
+        return;
+    }
+
+    // 401: davet edilen nick yok
+    Client* target = findClientByNick(nickArg);
+    if (target == NULL)
+    {
+        client.sendMessage(":ircserv 401 " + client.getNickname()
+                           + " " + nickArg + " :No such nick\r\n");
+        return;
+    }
+
+    // 443: zaten kanalda
+    if (it->second.hasMember(target->getFd()))
+    {
+        client.sendMessage(":ircserv 443 " + client.getNickname()
+                           + " " + nickArg + " " + channelArg
+                           + " :is already on channel\r\n");
+        return;
+    }
+
+    // Davet listesine ekle (invite-only kanal için JOIN'i geçirsin diye)
+    it->second.addInvited(target->getFd());
+
+    // 341 RPL_INVITING - davet edene
+    client.sendMessage(":ircserv 341 " + client.getNickname()
+                       + " " + nickArg + " " + channelArg + "\r\n");
+
+    // INVITE mesajı - davet edilene
+    std::string prefix = client.getNickname() + "!"
+                         + client.getUsername() + "@localhost";
+    std::string inviteMsg = ":" + prefix + " INVITE " + nickArg
+                            + " :" + channelArg + "\r\n";
+    target->sendMessage(inviteMsg);
+
+    std::cout << "INVITE: " << client.getNickname() << " invited "
+              << nickArg << " to " << channelArg << std::endl;
+  
+  //hakotu kısmı check etmek lazım
   // 353 RPL_NAMREPLY: "= " public channel anlamına gelir.
   client.sendMessage(":ircserv 353 " + client.getNickname() + " = " +
                      channel.getName() + " :" + names + "\r\n");

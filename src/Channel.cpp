@@ -38,6 +38,19 @@ bool Channel::isOperator(int fd) const
     return _operators.find(fd) != _operators.end();
 }
 
+// Operator yönetimi
+void Channel::addOperator(int fd)
+{
+    _operators.insert(fd);
+}
+
+void Channel::removeOperator(int fd)
+{
+    _operators.erase(fd);
+}
+
+// Invite list yönetimi
+void Channel::addInvited(int fd)
 bool Channel::isInvited(int fd) const
 {
     return _invited.find(fd) != _invited.end();
@@ -51,6 +64,11 @@ void Channel::inviteUser(int fd)
 void Channel::removeInvited(int fd)
 {
     _invited.erase(fd);
+}
+
+bool Channel::isInvited(int fd) const
+{
+    return _invited.find(fd) != _invited.end();
 }
 
 const std::map<int, Client*> &Channel::getMembers() const
