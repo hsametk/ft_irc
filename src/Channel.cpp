@@ -2,16 +2,17 @@
 #include <unistd.h>
 
 // Constructor
-Channel::Channel() : _name(""), _topic(""), _key(""), _limit(0), _inviteOnly(false) {}
+Channel::Channel() : _name(""), _topic(""), _key(""), _limit(0), _inviteOnly(false), _topicOpOnly(false) {}
 
-Channel::Channel(const std::string &name) : _name(name), _topic(""), _key(""), _limit(0), _inviteOnly(false) {}
+Channel::Channel(const std::string &name) : _name(name), _topic(""), _key(""), _limit(0), _inviteOnly(false), _topicOpOnly(false) {}
 
 // Getters
-const std::string &Channel::getName() const { return _name; }
+const std::string &Channel::getName()  const { return _name; }
 const std::string &Channel::getTopic() const { return _topic; }
-const std::string &Channel::getKey() const { return _key; }
-int Channel::getLimit() const { return _limit; }
-bool Channel::isInviteOnly() const { return _inviteOnly; }
+const std::string &Channel::getKey()   const { return _key; }
+int  Channel::getLimit()        const { return _limit; }
+bool Channel::isInviteOnly()    const { return _inviteOnly; }
+bool Channel::isTopicOpOnly()   const { return _topicOpOnly; }
 
 // Member management
 void Channel::addMember(Client *client, bool op)
@@ -38,10 +39,11 @@ bool Channel::isOperator(int fd) const
     return _operators.find(fd) != _operators.end();
 }
 
-// Operator yönetimi
+// Operator management
 void Channel::addOperator(int fd)
 {
-    _operators.insert(fd);
+    if (hasMember(fd))
+        _operators.insert(fd);
 }
 
 void Channel::removeOperator(int fd)
@@ -49,14 +51,8 @@ void Channel::removeOperator(int fd)
     _operators.erase(fd);
 }
 
-// Invite list yönetimi
+// Invite list management
 void Channel::addInvited(int fd)
-bool Channel::isInvited(int fd) const
-{
-    return _invited.find(fd) != _invited.end();
-}
-
-void Channel::inviteUser(int fd)
 {
     _invited.insert(fd);
 }
@@ -78,22 +74,10 @@ const std::map<int, Client*> &Channel::getMembers() const
 
 // Setters
 void Channel::setTopic(const std::string &topic) { _topic = topic; }
-void Channel::setKey(const std::string &key) { _key = key; }
-void Channel::setLimit(int limit) { _limit = limit; }
-void Channel::setInviteOnly(bool val) { _inviteOnly = val; }
-void Channel::setTopicOpOnly(bool val) { _topicOpOnly = val; }
-bool Channel::isTopicOpOnly() const { return _topicOpOnly; }
-
-void Channel::addOperator(int fd)
-{
-    if (hasMember(fd))
-        _operators.insert(fd);
-}
-
-void Channel::removeOperator(int fd)
-{
-    _operators.erase(fd);
-}
+void Channel::setKey(const std::string &key)      { _key = key; }
+void Channel::setLimit(int limit)                 { _limit = limit; }
+void Channel::setInviteOnly(bool val)             { _inviteOnly = val; }
+void Channel::setTopicOpOnly(bool val)            { _topicOpOnly = val; }
 
 // Broadcast message to all members except excludeFd
 void Channel::broadcast(const std::string &msg, int excludeFd) const
@@ -101,8 +85,6 @@ void Channel::broadcast(const std::string &msg, int excludeFd) const
     for (std::map<int, Client*>::const_iterator it = _members.begin(); it != _members.end(); ++it)
     {
         if (it->first != excludeFd)
-        {
             it->second->sendMessage(msg);
-        }
     }
 }

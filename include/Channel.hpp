@@ -39,19 +39,15 @@ public:
     bool isOperator(int fd) const;
     bool isInvited(int fd) const;
 
-    // Operator yönetimi (KICK / MODE / INVITE için)
+    // Operator yönetimi (KICK / MODE için)
     void addOperator(int fd);
     void removeOperator(int fd);
 
     // Invite list yönetimi (INVITE komutu için)
     void addInvited(int fd);
     void removeInvited(int fd);
-    bool isInvited(int fd) const;
 
     const std::map<int, Client*> &getMembers() const;
-
-    void inviteUser(int fd);
-    void removeInvited(int fd);
 
     // Setter'lar (MODE için)
     void setTopic(const std::string &topic);
@@ -62,9 +58,6 @@ public:
 
     // Tüm üyelere mesaj yayınla
     void broadcast(const std::string &msg, int excludeFd = -1) const;
-
-    void addOperator(int fd);
-    void removeOperator(int fd);
 };
 
 #endif

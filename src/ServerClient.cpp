@@ -289,7 +289,12 @@ void Server::sendNamesList(Client &client, Channel &channel) {
     names += it->second->getNickname();
   }
 
-    std::cout << "PART: " << client.getNickname() << " left " << channelName << std::endl;
+  // 353 RPL_NAMREPLY
+  client.sendMessage(":ircserv 353 " + client.getNickname() + " = " +
+                     channel.getName() + " :" + names + "\r\n");
+  // 366 RPL_ENDOFNAMES
+  client.sendMessage(":ircserv 366 " + client.getNickname() + " " +
+                     channel.getName() + " :End of /NAMES list\r\n");
 }
 
 
@@ -489,12 +494,4 @@ void Server::inviteCommand(Client& client, const std::string& params)
 
     std::cout << "INVITE: " << client.getNickname() << " invited "
               << nickArg << " to " << channelArg << std::endl;
-  
-  //hakotu kısmı check etmek lazım
-  // 353 RPL_NAMREPLY: "= " public channel anlamına gelir.
-  client.sendMessage(":ircserv 353 " + client.getNickname() + " = " +
-                     channel.getName() + " :" + names + "\r\n");
-  // 366 RPL_ENDOFNAMES
-  client.sendMessage(":ircserv 366 " + client.getNickname() + " " +
-                     channel.getName() + " :End of /NAMES list\r\n");
 }

@@ -51,13 +51,9 @@ void Server::signalHandler(int signum)
 }
 
 
-//TODO:: error masage iki kere yazıyor biri doğru birini silelim.
 // Send error message to client
 void Server::sendError(Client& client, int code, const std::string& msg)
 {
-    std::stringstream ss;
-    ss << code;
-    std::string errorMsg = ":ircserv " + ss.str() + " " + client.getNickname() + " " + msg + "\r\n";
     std::string errorMsg = ":ircserv " + intToStr(code) + " " + client.getNickname() + " " + msg + "\r\n";
     send(client.getFd(), errorMsg.c_str(), errorMsg.size(), 0);
 }
