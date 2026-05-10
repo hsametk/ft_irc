@@ -46,3 +46,4 @@ int main(int argc, char *argv[])
     }
     return 0;
 }
+//feat: implement KICK, TOPIC, and MODE command handlers with validation helpers

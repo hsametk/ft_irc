@@ -2,8 +2,18 @@
 // #include "../include/Auth.hpp"
 #include <cerrno>
 #include <cstring>
+#include <sstream>
+#include <set>
 
 bool Server::_running = true;
+
+// C++98 uyumlu int → string dönüşümü
+static std::string intToStr(int n)
+{
+    std::ostringstream oss;
+    oss << n;
+    return oss.str();
+}
 
 // Constructor / Destructor
 Server::Server(int port, const std::string &password)
@@ -40,11 +50,44 @@ void Server::signalHandler(int signum)
     _running = false;
 }
 
+
+//TODO:: error masage iki kere yazıyor biri doğru birini silelim.
 // Send error message to client
 void Server::sendError(Client& client, int code, const std::string& msg)
 {
     std::stringstream ss;
     ss << code;
     std::string errorMsg = ":ircserv " + ss.str() + " " + client.getNickname() + " " + msg + "\r\n";
+    std::string errorMsg = ":ircserv " + intToStr(code) + " " + client.getNickname() + " " + msg + "\r\n";
     send(client.getFd(), errorMsg.c_str(), errorMsg.size(), 0);
 }
+
+// NICK değişikliğini kullanıcının bulunduğu tüm kanallara duyurur.
+// Aynı kullanıcıya birden fazla mesaj gitmemesi için fd bazlı deduplicate yapar.
+void Server::broadcastNickChange(Client& client, const std::string& oldNick)
+{
+    std::string nickMsg = ":" + oldNick + "!" + client.getUsername()
+                        + "@localhost NICK " + client.getNickname() + "\r\n";
+
+    // Birden fazla ortak kanaldaki kullanıcıya yalnızca bir kez gönder.
+    std::set<int> notified;
+    notified.insert(client.getFd()); // Kendisine zaten gönderildi.
+
+    for (std::map<std::string, Channel>::iterator ch = _channels.begin();
+         ch != _channels.end(); ++ch)
+    {
+        if (!ch->second.hasMember(client.getFd()))
+            continue;
+        const std::map<int, Client*>& members = ch->second.getMembers();
+        for (std::map<int, Client*>::const_iterator m = members.begin();
+             m != members.end(); ++m)
+        {
+            if (notified.find(m->first) == notified.end())
+            {
+                m->second->sendMessage(nickMsg);
+                notified.insert(m->first);
+            }
+        }
+    }
+}
+
