@@ -47,7 +47,7 @@ class Client
         const std::string& getUsername() const;
         void               setUsername(const std::string& user);
         // Realname getter/setter
-          const std::string& getRealname() const;
+        const std::string& getRealname() const;
         void               setRealname(const std::string& realname);
         // Gelen veriyi client buffer'ına ekler.
         void appendToBuffer(const std::string& data);
