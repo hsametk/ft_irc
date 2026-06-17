@@ -21,7 +21,8 @@ static bool isPositiveNumber(const std::string &s)
 // ---------------------------------------------------------------------------
 // +i / -i  — Invite-only
 // ---------------------------------------------------------------------------
-void Server::applyModeI(Channel &ch, bool adding,
+bool Server::applyModeI(Client&, Channel &ch, bool adding,
+                        const std::string&, const std::vector<std::string>&, size_t&,
                         std::string &appliedModes, std::string &)
 {
     ch.setInviteOnly(adding);
@@ -29,12 +30,14 @@ void Server::applyModeI(Channel &ch, bool adding,
         appliedModes += "+i";
     else
         appliedModes += "-i";
+    return true;
 }
 
 // ---------------------------------------------------------------------------
 // +t / -t  — Topic sadece operatörler değiştirebilir
 // ---------------------------------------------------------------------------
-void Server::applyModeT(Channel &ch, bool adding,
+bool Server::applyModeT(Client&, Channel &ch, bool adding,
+                        const std::string&, const std::vector<std::string>&, size_t&,
                         std::string &appliedModes, std::string &)
 {
     ch.setTopicOpOnly(adding);
@@ -42,6 +45,7 @@ void Server::applyModeT(Channel &ch, bool adding,
         appliedModes += "+t";
     else
         appliedModes += "-t";
+    return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -182,55 +186,44 @@ void Server::handleMode(Client &sender, const std::string &channelName,
     Channel *ch = CmdHelpers::getChannelOrError(*this, sender, channelName);
     if (!ch)
         return;
-
     // 3. Sender kanalda mı?
     if (!CmdHelpers::requireMember(*this, sender, *ch))
         return;
-
     // 4. Sender operator mü?
     if (!CmdHelpers::requireOperator(*this, sender, *ch))
         return;
-
     // Uygulanan mod değişikliklerini RPL_CHANNELMODEIS (324) için biriktir
     std::string appliedModes;
     std::string appliedParams;
     bool        adding   = true;  // '+' → true, '-' → false
     size_t      paramIdx = 0;     // modeParams içindeki sıradaki parametre
 
+    typedef bool (Server::*ModeHandler)(Client &, Channel &, bool, const std::string &, const std::vector<std::string> &, size_t &, std::string &, std::string &);
+    static std::map<char, ModeHandler> handlers;
+    if (handlers.empty())
+    {
+        handlers['i'] = &Server::applyModeI;
+        handlers['t'] = &Server::applyModeT;
+        handlers['k'] = &Server::applyModeK;
+        handlers['l'] = &Server::applyModeL;
+        handlers['o'] = &Server::applyModeO;
+    }
+
     for (size_t i = 0; i < modeStr.size(); ++i)
     {
         char c = modeStr[i];
+        if (c == '+') { adding = true; continue; }
+        if (c == '-') { adding = false; continue; }
 
-        if (c == '+')
+        if (handlers.count(c))
         {
-            adding = true;
-            continue;
+            if (!(this->*handlers[c])(sender, *ch, adding, channelName, modeParams, paramIdx, appliedModes, appliedParams))
+                return;
         }
-        if (c == '-')
-        {
-            adding = false;
-            continue;
-        }
-
-        bool ok = true;
-        if (c == 'i')
-            applyModeI(*ch, adding, appliedModes, appliedParams);
-        else if (c == 't')
-            applyModeT(*ch, adding, appliedModes, appliedParams);
-        else if (c == 'k')
-            ok = applyModeK(sender, *ch, adding, channelName, modeParams, paramIdx, appliedModes, appliedParams);
-        else if (c == 'l')
-            ok = applyModeL(sender, *ch, adding, channelName, modeParams, paramIdx, appliedModes, appliedParams);
-        else if (c == 'o')
-            ok = applyModeO(sender, *ch, adding, channelName, modeParams, paramIdx, appliedModes, appliedParams);
         else
         {
-            // Bilinmeyen mod karakteri → 472 ERR_UNKNOWNMODE
-            sender.sendMessage(":ircserv 472 " + sender.getNickname() +
-                               " " + c + " :is unknown mode char to me\r\n");
+            sender.sendMessage(":ircserv 472 " + sender.getNickname() + " " + c + " :is unknown mode char to me\r\n");
         }
-        if (!ok)
-            return;
     }
 
     // Eğer +i/+t/+k/+l için mod değişikliği uygulandıysa kanala bildir

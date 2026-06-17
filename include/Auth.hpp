@@ -4,6 +4,8 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <iostream>
+#include <cctype>
 #include "Client.hpp"
 #include "Server.hpp"
 

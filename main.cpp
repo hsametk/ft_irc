@@ -28,7 +28,6 @@ void check_args(int argc, char *argv[], int &port, std::string &password)
         exit(1);
     }
 }
-//TODO: Bir servera bağlıyken tekrar tekrar bağlanaıyor bug fix
 int main(int argc, char *argv[])
 {
     int port;
@@ -46,4 +45,3 @@ int main(int argc, char *argv[])
     }
     return 0;
 }
-//feat: implement KICK, TOPIC, and MODE command handlers with validation helpers

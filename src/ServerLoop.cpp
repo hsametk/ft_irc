@@ -10,7 +10,6 @@ void Server::run()
     int ready;
     while (_running)
     {
-        // Update events for POLLOUT
         for (size_t i = 0; i < _pfds.size(); ++i)
         {
             if (_pfds[i].fd != _serverFd)
@@ -133,7 +132,6 @@ void Server::acceptClient()
     // Add client to poll set
     addPollFd(clientFd);
     // Add client to clients map
-    //TODO: Client constructor'ı yazılmalı ve buraya eklenmeli burada yeni kullanıcı oluşturuluyor.
     _clients[clientFd] = Client(clientFd);
     std::cout << "New client connected: fd=" << clientFd << "\n";
 }
@@ -149,7 +147,6 @@ void Server::receiveFromClient(int fd)
 
     if (bytesRead > 0)
     {
-        //TODO: Debug
         std::cout << "[DEBUG RAW " << fd << "] received " << bytesRead << " bytes: \"";
         for (ssize_t i = 0; i < bytesRead; ++i) {
             if (rawBuffer[i] == '\r') std::cout << "\\r";

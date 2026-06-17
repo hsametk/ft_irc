@@ -1,10 +1,6 @@
 
 #include "../include/Server.hpp"
 #include "../include/Auth.hpp"
-#include <iostream>
-#include <map>
-#include <cctype>
-#include <vector>
 
 std::string normalize_spaces(const std::string &line) //zülal
 {
@@ -27,7 +23,6 @@ std::string normalize_spaces(const std::string &line) //zülal
             inSpace = false;
         }
     }
-
     // Baştaki ve sondaki boşlukları kesin temizle
     size_t start = result.find_first_not_of(" ");
     if (start == std::string::npos) return "";
@@ -42,15 +37,12 @@ ParsedCommand parse_line(const std::string &line) //zülal
 
     if (normalized.empty())
         return parsed;
-
     size_t pos = normalized.find(' ');
-
     if (pos == std::string::npos)
     {
         parsed.command = normalized;
         return parsed;
     }
-
     parsed.command = normalized.substr(0, pos);
     std::string rest = normalized.substr(pos + 1);
 
@@ -72,20 +64,8 @@ ParsedCommand parse_line(const std::string &line) //zülal
         // normalized_spaces zaten boşlukları temizlediği için 
         // peş peşe boşluk gelmeyecektir.
     }
-
     return parsed;
 }
-
-
-// clients map'inde istenen nick kullanımda mı? (kendisi hariç)
-// Params string'inden sondaki \r veya boşlukları temizler
-// static std::string trim(const std::string &s)
-// {
-//     size_t end = s.size();
-//     while (end > 0 && (s[end - 1] == '\r' || s[end - 1] == ' '))
-//         --end;
-//     return s.substr(0, end);
-// }
 
 static bool isNickInUse(const std::map<int, Client> &clients,
                         const std::string &nick, int selfFd)
@@ -120,7 +100,6 @@ static void send_welcome(Client &client)
     client.sendMessage(":ft_irc 002 " + nick + " :Your host is ft_irc, running version 1.0\r\n");
     client.sendMessage(":ft_irc 003 " + nick + " :This server was created Apr 2026\r\n");
     client.sendMessage(":ft_irc 004 " + nick + " ft_irc 1.0 o o\r\n");
-
     // MOTD
     client.sendMessage(":ft_irc 375 " + nick + " :- ft_irc Message of the Day -\r\n");
     client.sendMessage(":ft_irc 372 " + nick + " :- Welcome to your own IRC server\r\n");
@@ -139,7 +118,6 @@ void handle_pass(Client &client, const std::vector<std::string> &args,
         client.sendMessage(":ircserv 461 * PASS :Not enough parameters\r\n");
         return;
     }
-
     if (args[0] == serverPassword)
     {
         client.setPassOk(true);
@@ -189,21 +167,18 @@ void handle_user(Client &client, const std::vector<std::string> &args)
 
 void registration_state(Client &client, const std::string &line,
                         const std::string &serverPassword,
-                        const std::map<int, Client> &clients) //zülal değiştirdim
+                        const std::map<int, Client> &clients)
 {
     ParsedCommand parsed = parse_line(line);
 
     if (parsed.command.empty())
         return;
-
     std::string command = parsed.command;
     std::vector<std::string> args = parsed.args;
-
     // Debug: parser kontrolü
     std::cout << "[PARSED] CMD=" << command << std::endl;
     for (size_t i = 0; i < args.size(); ++i)
         std::cout << "[PARSED] ARG[" << i << "]=" << args[i] << std::endl;
-
     // CAP: irssi capability müzakeresi
     if (command == "CAP")
     {
@@ -211,7 +186,6 @@ void registration_state(Client &client, const std::string &line,
             client.sendMessage(":ircserv CAP * LS :\r\n");
         return;
     }
-
     if (command == "PASS")
         handle_pass(client, args, serverPassword);
     else if (command == "NICK")
@@ -224,7 +198,6 @@ void registration_state(Client &client, const std::string &line,
         client.sendMessage(":ircserv 451 * :You have not registered\r\n");
         return;
     }
-
     // Üç koşul da sağlandı mı? -> kayıt tamamlandı
     if (client.isPassOk() && client.isNickSet() && client.isUserSet())
     {
@@ -393,77 +366,63 @@ bool handle_kick(Client &client, const std::vector<std::string> &args, Server &s
     return false;
 }
 
+static void handle_channel_mode_query(Client &client, const std::string &target, Server &server)
+{
+    std::map<std::string, Channel> &channels = server.getChannels();
+    std::map<std::string, Channel>::iterator it = channels.find(target);
+    if (it == channels.end())
+    {
+        client.sendMessage(":ircserv 403 " + client.getNickname() + " " + target + " :No such channel\r\n");
+        return;
+    }
+
+    std::string modes = "+";
+    std::string modeArgs = "";
+    if (it->second.isInviteOnly()) modes += "i";
+    if (it->second.isTopicOpOnly()) modes += "t";
+    if (!it->second.getKey().empty())
+    {
+        modes += "k";
+        modeArgs += " " + it->second.getKey();
+    }
+    if (it->second.getLimit() > 0)
+    {
+        modes += "l";
+        std::stringstream ss;
+        ss << it->second.getLimit();
+        modeArgs += " " + ss.str();
+    }
+    
+    modes = (modes == "+") ? "" : " " + modes;
+    client.sendMessage(":ircserv 324 " + client.getNickname() + " " + target + modes + modeArgs + "\r\n");
+}
+
+static void handle_user_mode_query(Client &client, const std::string &target)
+{
+    if (target == client.getNickname())
+        client.sendMessage(":ircserv 221 " + client.getNickname() + " +i\r\n");
+    else
+        client.sendMessage(":ircserv 502 " + client.getNickname() + " :Cannot change mode for other users\r\n");
+}
+
 bool handle_mode(Client &client, const std::vector<std::string> &args, Server &server)
 {
     if (args.empty())
     {
-        client.sendMessage(":ircserv 461 " + client.getNickname()
-                           + " MODE :Not enough parameters\r\n");
+        client.sendMessage(":ircserv 461 " + client.getNickname() + " MODE :Not enough parameters\r\n");
         return false;
     }
     if (args.size() == 1)
     {
-        const std::string &target = args[0];
-        if (target[0] == '#')
-        {
-            std::map<std::string, Channel> &channels = server.getChannels();
-            std::map<std::string, Channel>::iterator it = channels.find(target);
-            if (it != channels.end())
-            {
-                std::string modes = "+";
-                std::string modeArgs = "";
-                if (it->second.isInviteOnly())
-                {
-                    modes += "i";
-                }
-                if (it->second.isTopicOpOnly())
-                {
-                    modes += "t";
-                }
-                if (!it->second.getKey().empty())
-                {
-                    modes += "k";
-                    modeArgs += " " + it->second.getKey();
-                }
-                if (it->second.getLimit() > 0)
-                {
-                    modes += "l";
-                    std::stringstream ss;
-                    ss << it->second.getLimit();
-                    modeArgs += " " + ss.str();
-                }
-                if (modes == "+")
-                {
-                    modes = "";
-                }
-                else
-                {
-                    modes = " " + modes;
-                }
-                client.sendMessage(":ircserv 324 " + client.getNickname() + " " + target + modes + modeArgs + "\r\n");
-            }
-            else
-            {
-                client.sendMessage(":ircserv 403 " + client.getNickname() + " " + target + " :No such channel\r\n");
-            }
-        }
+        if (args[0][0] == '#')
+            handle_channel_mode_query(client, args[0], server);
         else
-        {
-            if (target == client.getNickname())
-            {
-                client.sendMessage(":ircserv 221 " + client.getNickname() + " +i\r\n");
-            }
-            else
-            {
-                client.sendMessage(":ircserv 502 " + client.getNickname() + " :Cannot change mode for other users\r\n");
-            }
-        }
+            handle_user_mode_query(client, args[0]);
         return false;
     }
-    const std::string &channelName = args[0];
-    const std::string &modeStr     = args[1];
+    
     std::vector<std::string> modeParams(args.begin() + 2, args.end());
-    server.handleMode(client, channelName, modeStr, modeParams);
+    server.handleMode(client, args[0], args[1], modeParams);
     return false;
 }
 
@@ -473,66 +432,27 @@ bool dispatch_command(Client &client, const std::string &line,
                       std::map<int, Client> &clients, Server &server) //zülal değiştirdim
 {
     ParsedCommand parsed = parse_line(line);
-
-    if (parsed.command.empty())
-        return false;
-
-    std::string command = parsed.command;
-    std::vector<std::string> args = parsed.args;
+    if (parsed.command.empty()) return false;
 
     std::string params;
-    for (size_t i = 0; i < args.size(); ++i)
-    {
-        if (i > 0)
-            params += " ";
-        params += args[i];
-    }
+    for (size_t i = 0; i < parsed.args.size(); ++i)
+        params += (i > 0 ? " " : "") + parsed.args[i];
 
-    // --- PING ---
-    if (command == "PING")
-        return handle_ping(client, args, params);
+    const std::string &cmd = parsed.command;
+    const std::vector<std::string> &args = parsed.args;
 
-    // --- QUIT ---
-    if (command == "QUIT")
-        return handle_quit(client, params);
+    if (cmd == "PING") return handle_ping(client, args, params);
+    if (cmd == "QUIT") return handle_quit(client, params);
+    if (cmd == "NICK") return handle_nick(client, args, clients);
+    if (cmd == "JOIN") return handle_join(client, args, server);
+    if (cmd == "PRIVMSG") { server.sendServerMessage(client, params); return false; }
+    if (cmd == "PART") return handle_part(client, args, params, server);
+    if (cmd == "TOPIC") return handle_topic(client, args, params, server);
+    if (cmd == "INVITE") return handle_invite(client, args, params, server);
+    if (cmd == "KICK") return handle_kick(client, args, server);
+    if (cmd == "MODE") return handle_mode(client, args, server);
 
-    // --- NICK ---
-    if (command == "NICK")
-        return handle_nick(client, args, clients);
-
-    // --- JOIN ---
-    // Çoklu kanal desteği: "JOIN #a,#b key1,key2"
-    if (command == "JOIN")
-        return handle_join(client, args, server);
-
-    if (command == "PRIVMSG") {
-        server.sendServerMessage(client, params);
-        return false;
-    }
-
-    // --- PART ---
-    if (command == "PART")
-        return handle_part(client, args, params, server);
-
-    // --- TOPIC ---
-    if (command == "TOPIC")
-        return handle_topic(client, args, params, server);
-
-    // --- INVITE ---
-    if (command == "INVITE")
-        return handle_invite(client, args, params, server);
-
-    // --- KICK ---
-    if (command == "KICK")
-        return handle_kick(client, args, server);
-
-    // --- MODE ---
-    if (command == "MODE")
-        return handle_mode(client, args, server);
-
-    // Bilinmeyen komut -> 421 ERR_UNKNOWNCOMMAND
-    client.sendMessage(":ircserv 421 " + client.getNickname()
-                       + " " + command + " :Unknown command\r\n");
+    client.sendMessage(":ircserv 421 " + client.getNickname() + " " + cmd + " :Unknown command\r\n");
     return false;
 }
 

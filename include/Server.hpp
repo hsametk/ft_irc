@@ -85,9 +85,13 @@ public:
     void handleMode(Client& sender, const std::string& channelName,
                     const std::string& modeStr,
                     const std::vector<std::string>& modeParams);
-    void applyModeI(Channel& ch, bool adding,
+    bool applyModeI(Client& sender, Channel& ch, bool adding,
+                    const std::string& channelName,
+                    const std::vector<std::string>& modeParams, size_t& paramIdx,
                     std::string& appliedModes, std::string& appliedParams);
-    void applyModeT(Channel& ch, bool adding,
+    bool applyModeT(Client& sender, Channel& ch, bool adding,
+                    const std::string& channelName,
+                    const std::vector<std::string>& modeParams, size_t& paramIdx,
                     std::string& appliedModes, std::string& appliedParams);
     bool applyModeK(Client& sender, Channel& ch, bool adding,
                     const std::string& channelName,
