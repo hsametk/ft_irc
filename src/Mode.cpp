@@ -11,8 +11,144 @@ static bool isPositiveNumber(const std::string &s)
     if (s.empty())
         return false;
     for (size_t i = 0; i < s.size(); ++i)
+    {
         if (!std::isdigit(s[i]))
             return false;
+    }
+    return true;
+}
+
+// ---------------------------------------------------------------------------
+// +i / -i  — Invite-only
+// ---------------------------------------------------------------------------
+void Server::applyModeI(Channel &ch, bool adding,
+                        std::string &appliedModes, std::string &)
+{
+    ch.setInviteOnly(adding);
+    if (adding)
+        appliedModes += "+i";
+    else
+        appliedModes += "-i";
+}
+
+// ---------------------------------------------------------------------------
+// +t / -t  — Topic sadece operatörler değiştirebilir
+// ---------------------------------------------------------------------------
+void Server::applyModeT(Channel &ch, bool adding,
+                        std::string &appliedModes, std::string &)
+{
+    ch.setTopicOpOnly(adding);
+    if (adding)
+        appliedModes += "+t";
+    else
+        appliedModes += "-t";
+}
+
+// ---------------------------------------------------------------------------
+// +k / -k  — Kanal şifresi
+// ---------------------------------------------------------------------------
+bool Server::applyModeK(Client &sender, Channel &ch, bool adding,
+                        const std::string &channelName,
+                        const std::vector<std::string> &modeParams, size_t &paramIdx,
+                        std::string &appliedModes, std::string &appliedParams)
+{
+    if (adding)
+    {
+        // +k parametre gerektirir
+        if (paramIdx >= modeParams.size() || modeParams[paramIdx].empty())
+        {
+            sendError(sender, ERR_NEEDMOREPARAMS, channelName + " +k :Not enough parameters");
+            return false;
+        }
+        ch.setKey(modeParams[paramIdx]);
+        appliedModes  += "+k";
+        appliedParams += " " + modeParams[paramIdx];
+        ++paramIdx;
+    }
+    else
+    {
+        // -k parametre almaz; şifreyi temizle
+        ch.setKey("");
+        appliedModes += "-k";
+    }
+    return true;
+}
+
+// ---------------------------------------------------------------------------
+// +l / -l  — Üye limiti
+// ---------------------------------------------------------------------------
+bool Server::applyModeL(Client &sender, Channel &ch, bool adding,
+                        const std::string &channelName,
+                        const std::vector<std::string> &modeParams, size_t &paramIdx,
+                        std::string &appliedModes, std::string &appliedParams)
+{
+    if (adding)
+    {
+        // +l parametre gerektirir ve pozitif sayı olmalı
+        if (paramIdx >= modeParams.size() || !isPositiveNumber(modeParams[paramIdx]))
+        {
+            sendError(sender, ERR_NEEDMOREPARAMS, channelName + " +l :Invalid or missing limit");
+            return false;
+        }
+        ch.setLimit(std::atoi(modeParams[paramIdx].c_str()));
+        appliedModes  += "+l";
+        appliedParams += " " + modeParams[paramIdx];
+        ++paramIdx;
+    }
+    else
+    {
+        // -l → limiti kaldır
+        ch.setLimit(0);
+        appliedModes += "-l";
+    }
+    return true;
+}
+
+// ---------------------------------------------------------------------------
+// +o / -o  — Operatör yetkisi ver / al
+// ---------------------------------------------------------------------------
+bool Server::applyModeO(Client &sender, Channel &ch, bool adding,
+                        const std::string &channelName,
+                        const std::vector<std::string> &modeParams, size_t &paramIdx,
+                        std::string &appliedModes, std::string &appliedParams)
+{
+    if (paramIdx >= modeParams.size() || modeParams[paramIdx].empty())
+    {
+        sendError(sender, ERR_NEEDMOREPARAMS, channelName + " +o/-o :Not enough parameters");
+        return false;
+    }
+    const std::string &targetNick = modeParams[paramIdx];
+    ++paramIdx;
+
+    // 7. Hedef nick var mı?
+    Client *target = CmdHelpers::getClientByNick(*this, sender, targetNick);
+    if (!target)
+        return false;
+
+    // 8. Hedef kanalda mı?
+    if (!CmdHelpers::requireTargetMember(*this, sender, ch, *target))
+        return false;
+
+    std::string prefix = ":" + sender.getNickname() + "!" +
+                         sender.getUsername() + "@localhost";
+
+    if (adding)
+    {
+        ch.addOperator(target->getFd());
+        appliedModes  += "+o";
+        appliedParams += " " + targetNick;
+        // Kanaldaki herkese MODE bildir (irssi @ prefix günceller)
+        std::string modeMsg = prefix + " MODE " + channelName + " +o " + targetNick + "\r\n";
+        ch.broadcast(modeMsg);
+    }
+    else
+    {
+        ch.removeOperator(target->getFd());
+        appliedModes  += "-o";
+        appliedParams += " " + targetNick;
+        std::string modeMsg = prefix + " MODE " + channelName + " -o " + targetNick + "\r\n";
+        ch.broadcast(modeMsg);
+    }
     return true;
 }
 
@@ -58,145 +194,43 @@ void Server::handleMode(Client &sender, const std::string &channelName,
     // Uygulanan mod değişikliklerini RPL_CHANNELMODEIS (324) için biriktir
     std::string appliedModes;
     std::string appliedParams;
-    bool        adding = true;  // '+' → true, '-' → false
-    size_t      paramIdx = 0;   // modeParams içindeki sıradaki parametre
+    bool        adding   = true;  // '+' → true, '-' → false
+    size_t      paramIdx = 0;     // modeParams içindeki sıradaki parametre
 
     for (size_t i = 0; i < modeStr.size(); ++i)
     {
         char c = modeStr[i];
 
-        if (c == '+') { adding = true;  continue; }
-        if (c == '-') { adding = false; continue; }
-
-        switch (c)
+        if (c == '+')
         {
-            // ----------------------------------------------------------
-            // +i / -i  — Invite-only
-            // ----------------------------------------------------------
-            case 'i':
-                ch->setInviteOnly(adding);
-                appliedModes += (adding ? "+" : "-");
-                appliedModes += 'i';
-                break;
-
-            // ----------------------------------------------------------
-            // +t / -t  — Topic sadece operatörler değiştirebilir
-            // ----------------------------------------------------------
-            case 't':
-                ch->setTopicOpOnly(adding);
-                appliedModes += (adding ? "+" : "-");
-                appliedModes += 't';
-                break;
-
-            // ----------------------------------------------------------
-            // +k / -k  — Kanal şifresi
-            // ----------------------------------------------------------
-            case 'k':
-                if (adding)
-                {
-                    // +k parametre gerektirir
-                    if (paramIdx >= modeParams.size() || modeParams[paramIdx].empty())
-                    {
-                        sendError(sender, ERR_NEEDMOREPARAMS,
-                                  channelName + " +k :Not enough parameters");
-                        return;
-                    }
-                    ch->setKey(modeParams[paramIdx]);
-                    appliedModes  += "+k";
-                    appliedParams += " " + modeParams[paramIdx];
-                    ++paramIdx;
-                }
-                else
-                {
-                    // -k parametre almaz; şifreyi temizle
-                    ch->setKey("");
-                    appliedModes += "-k";
-                }
-                break;
-
-            // ----------------------------------------------------------
-            // +l / -l  — Üye limiti
-            // ----------------------------------------------------------
-            case 'l':
-                if (adding)
-                {
-                    // +l parametre gerektirir ve pozitif sayı olmalı
-                    if (paramIdx >= modeParams.size() ||
-                        !isPositiveNumber(modeParams[paramIdx]))
-                    {
-                        sendError(sender, ERR_NEEDMOREPARAMS,
-                                  channelName + " +l :Invalid or missing limit");
-                        return;
-                    }
-                    int limit = std::atoi(modeParams[paramIdx].c_str());
-                    ch->setLimit(limit);
-                    appliedModes  += "+l";
-                    appliedParams += " " + modeParams[paramIdx];
-                    ++paramIdx;
-                }
-                else
-                {
-                    // -l → limiti kaldır
-                    ch->setLimit(0);
-                    appliedModes += "-l";
-                }
-                break;
-
-            // ----------------------------------------------------------
-            // +o / -o  — Operatör yetkisi ver / al
-            // ----------------------------------------------------------
-            case 'o':
-            {
-                if (paramIdx >= modeParams.size() || modeParams[paramIdx].empty())
-                {
-                    sendError(sender, ERR_NEEDMOREPARAMS,
-                              channelName + " +o/-o :Not enough parameters");
-                    return;
-                }
-                const std::string &targetNick = modeParams[paramIdx];
-                ++paramIdx;
-
-                // 7. Hedef nick var mı?
-                Client *target = CmdHelpers::getClientByNick(*this, sender, targetNick);
-                if (!target)
-                    return;
-
-                // 8. Hedef kanalda mı?
-                if (!CmdHelpers::requireTargetMember(*this, sender, *ch, *target))
-                    return;
-
-                if (adding)
-                {
-                    ch->addOperator(target->getFd());
-                    appliedModes  += "+o";
-                    appliedParams += " " + targetNick;
-                    // Kanaldaki herkese MODE bildir (irssi @ prefix günceller)
-                    std::string modeMsg = ":" + sender.getNickname() + "!" +
-                                         sender.getUsername() + "@localhost" +
-                                         " MODE " + channelName + " +o " +
-                                         targetNick + "\r\n";
-                    ch->broadcast(modeMsg);
-                }
-                else
-                {
-                    ch->removeOperator(target->getFd());
-                    appliedModes  += "-o";
-                    appliedParams += " " + targetNick;
-                    std::string modeMsg = ":" + sender.getNickname() + "!" +
-                                         sender.getUsername() + "@localhost" +
-                                         " MODE " + channelName + " -o " +
-                                         targetNick + "\r\n";
-                    ch->broadcast(modeMsg);
-                }
-                break;
-            }
-
-            default:
-                // Bilinmeyen mod karakteri → 472 ERR_UNKNOWNMODE
-                sender.sendMessage(":ircserv 472 " + sender.getNickname() +
-                                   " " + c + " :is unknown mode char to me\r\n");
-                break;
+            adding = true;
+            continue;
         }
+        if (c == '-')
+        {
+            adding = false;
+            continue;
+        }
+
+        bool ok = true;
+        if (c == 'i')
+            applyModeI(*ch, adding, appliedModes, appliedParams);
+        else if (c == 't')
+            applyModeT(*ch, adding, appliedModes, appliedParams);
+        else if (c == 'k')
+            ok = applyModeK(sender, *ch, adding, channelName, modeParams, paramIdx, appliedModes, appliedParams);
+        else if (c == 'l')
+            ok = applyModeL(sender, *ch, adding, channelName, modeParams, paramIdx, appliedModes, appliedParams);
+        else if (c == 'o')
+            ok = applyModeO(sender, *ch, adding, channelName, modeParams, paramIdx, appliedModes, appliedParams);
+        else
+        {
+            // Bilinmeyen mod karakteri → 472 ERR_UNKNOWNMODE
+            sender.sendMessage(":ircserv 472 " + sender.getNickname() +
+                               " " + c + " :is unknown mode char to me\r\n");
+        }
+        if (!ok)
+            return;
     }
 
     // Eğer +i/+t/+k/+l için mod değişikliği uygulandıysa kanala bildir

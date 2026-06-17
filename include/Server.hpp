@@ -54,6 +54,8 @@ private:
     Server &operator=(const Server &other);
     // Bir client'tan veri okur, buffer'a ekler ve tam satırları ayıklar.
     void receiveFromClient(int fd);
+    // Client send buffer'ındaki veriyi gönderir.
+    void sendToClient(int fd);
     // Client'ı poll listesinden ve map'ten temizler.
     void removeClient(int fd);
     // Client buffer içinden tamamlanmış satırları çıkarır.
@@ -76,10 +78,29 @@ public:
     // KICK komutunu işler.
     void handleKick(Client& sender, const std::string& channelName,
                     const std::string& targetNick, const std::string& reason);
+    void executeKick(Client& sender, Channel& ch, Client& target,
+                     const std::string& channelName,
+                     const std::string& targetNick, const std::string& reason);
     // MODE komutunu işler.
     void handleMode(Client& sender, const std::string& channelName,
                     const std::string& modeStr,
                     const std::vector<std::string>& modeParams);
+    void applyModeI(Channel& ch, bool adding,
+                    std::string& appliedModes, std::string& appliedParams);
+    void applyModeT(Channel& ch, bool adding,
+                    std::string& appliedModes, std::string& appliedParams);
+    bool applyModeK(Client& sender, Channel& ch, bool adding,
+                    const std::string& channelName,
+                    const std::vector<std::string>& modeParams, size_t& paramIdx,
+                    std::string& appliedModes, std::string& appliedParams);
+    bool applyModeL(Client& sender, Channel& ch, bool adding,
+                    const std::string& channelName,
+                    const std::vector<std::string>& modeParams, size_t& paramIdx,
+                    std::string& appliedModes, std::string& appliedParams);
+    bool applyModeO(Client& sender, Channel& ch, bool adding,
+                    const std::string& channelName,
+                    const std::vector<std::string>& modeParams, size_t& paramIdx,
+                    std::string& appliedModes, std::string& appliedParams);
     // client'ı params'da belirtilen kanaldan çıkarır.
     // params: "#kanal :ayrılma mesajı" formatını destekler.
     void partChannel(Client& client, const std::string& params);

@@ -20,6 +20,7 @@ class Client
         // recv() partial veri döndürebileceği için komut hemen parse edilmez.
         // Veri burada biriktirilir, tam satır gelince ayrılır.
         std::string _buffer;
+        std::string _sendBuffer;
 
     public:
         Client();
@@ -52,8 +53,10 @@ class Client
         std::string& getBuffer();
         // Sadece okumalık const erişim sağlar.
         const std::string& getBuffer() const;
-        // Client'a veri gönderir (PASS cevabı, CAP cevabı, vb.)
         void sendMessage(const std::string& msg);
+        // Giden veri buffer'a eklenir ve poll ile gönderilir.
+        std::string& getSendBuffer();
+        void eraseFromSendBuffer(size_t n);
 };
 
 #endif

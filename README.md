@@ -53,7 +53,6 @@ Any standard IRC client works. With `irssi`:
 ```
 irssi -c 127.0.0.1 -p 6667 -w secret -n alice
 ```
-
 ### Connecting with netcat (manual testing)
 
 ```

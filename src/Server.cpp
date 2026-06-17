@@ -55,7 +55,7 @@ void Server::signalHandler(int signum)
 void Server::sendError(Client& client, int code, const std::string& msg)
 {
     std::string errorMsg = ":ircserv " + intToStr(code) + " " + client.getNickname() + " " + msg + "\r\n";
-    send(client.getFd(), errorMsg.c_str(), errorMsg.size(), 0);
+    client.sendMessage(errorMsg);
 }
 
 // NICK değişikliğini kullanıcının bulunduğu tüm kanallara duyurur.

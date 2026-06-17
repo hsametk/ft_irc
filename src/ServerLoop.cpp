@@ -1,19 +1,28 @@
 #include "../include/Server.hpp"
 #include "../include/Auth.hpp"
-#include <cerrno>
 #include <cstring>
 #include <iostream>
-#include <stdlib.h>
-#include <iostream>
-#include <err.h>
+#include <cstdlib>
 
 // Public: Event Loop
 void Server::run()
 {
     int ready;
-    size_t currentSize;
     while (_running)
     {
+        // Update events for POLLOUT
+        for (size_t i = 0; i < _pfds.size(); ++i)
+        {
+            if (_pfds[i].fd != _serverFd)
+            {
+                std::map<int, Client>::iterator it = _clients.find(_pfds[i].fd);
+                if (it != _clients.end() && !it->second.getSendBuffer().empty())
+                    _pfds[i].events = POLLIN | POLLOUT;
+                else
+                    _pfds[i].events = POLLIN;
+            }
+        }
+
         // poll() returns the number of file descriptors that are ready for I/O
         // -1 means wait indefinitely
         ready = poll(&_pfds[0], _pfds.size(), -1);
@@ -26,23 +35,75 @@ void Server::run()
             break;
         }
 
-        // Iterate over a *copy* of current size so we don't trip on removals
-        currentSize = _pfds.size();
+        // Snapshot current fds before iterating: receiveFromClient may call
+        // removeClient which shrinks _pfds, invalidating indices.
+        std::vector<int> activeFds;
+        for (size_t i = 0; i < _pfds.size(); ++i)
+            activeFds.push_back(_pfds[i].fd);
+
         // loop through all file descriptors
-        for (size_t i = 0; i < currentSize; i++)
+        for (size_t i = 0; i < activeFds.size(); i++)
         {
-            // if revents is not POLLIN, continue
-            if (!(_pfds[i].revents & POLLIN))
+            // Find the pollfd for this fd (it may have been removed already)
+            struct pollfd *pfd = NULL;
+            for (size_t j = 0; j < _pfds.size(); ++j)
+            {
+                if (_pfds[j].fd == activeFds[i])
+                {
+                    pfd = &_pfds[j];
+                    break;
+                }
+            }
+            if (!pfd)
                 continue;
-            // if revents is POLLIN, it means the file descriptor is ready for I/O
-            // if the file descriptor is the server fd, accept the new client
-            if (_pfds[i].fd == _serverFd)
-                acceptClient();
-            // else, receive data from the client 
-            else
-                receiveFromClient(_pfds[i].fd);
+
+            if (pfd->fd == _serverFd)
+            {
+                if (pfd->revents & POLLIN)
+                    acceptClient();
+                continue;
+            }
+
+            if (pfd->revents & POLLIN)
+                receiveFromClient(pfd->fd);
+
+            // Re-find pfd because receiveFromClient may have removed it
+            pfd = NULL;
+            for (size_t j = 0; j < _pfds.size(); ++j)
+            {
+                if (_pfds[j].fd == activeFds[i])
+                {
+                    pfd = &_pfds[j];
+                    break;
+                }
+            }
+            if (!pfd)
+                continue;
+
+            if (pfd->revents & POLLOUT)
+                sendToClient(pfd->fd);
         }
     }
+}
+
+void Server::sendToClient(int fd)
+{
+    std::map<int, Client>::iterator it = _clients.find(fd);
+    if (it == _clients.end())
+        return;
+
+    std::string& buffer = it->second.getSendBuffer();
+    if (buffer.empty())
+        return;
+
+    ssize_t bytesSent = send(fd, buffer.c_str(), buffer.size(), 0);
+    if (bytesSent < 0)
+    {
+        removeClient(fd);
+        return;
+    }
+    
+    it->second.eraseFromSendBuffer(bytesSent);
 }
 
 // Private: Accept New Client
@@ -88,6 +149,7 @@ void Server::receiveFromClient(int fd)
 
     if (bytesRead > 0)
     {
+        //TODO: Debug
         std::cout << "[DEBUG RAW " << fd << "] received " << bytesRead << " bytes: \"";
         for (ssize_t i = 0; i < bytesRead; ++i) {
             if (rawBuffer[i] == '\r') std::cout << "\\r";
@@ -106,10 +168,6 @@ void Server::receiveFromClient(int fd)
 
     if (bytesRead < 0)
     {
-        if (errno == EAGAIN || errno == EWOULDBLOCK)
-            return;
-
-        std::cerr << "recv() error on fd " << fd << std::endl;
         removeClient(fd);
         return;
     }

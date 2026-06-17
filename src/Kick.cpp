@@ -16,6 +16,34 @@
 //   - KICK mesajı tüm kanal üyelerine broadcast edilir (hedef dahil).
 //   - Hedef client kanaldan çıkarılır.
 //   - Kanal boş kalırsa silinir.
+void Server::executeKick(Client &sender, Channel &ch, Client &target,
+                         const std::string &channelName,
+                         const std::string &targetNick, const std::string &reason)
+{
+    // --- Başarı: KICK mesajını yayınla ---
+    // :nick!user@host KICK #channel targetNick :reason
+    std::string prefix = ":" + sender.getNickname() + "!" +
+                         sender.getUsername() + "@localhost";
+    std::string kickMsg = prefix + " KICK " + channelName + " " +
+                          targetNick + " :" + reason + "\r\n";
+
+    // Tüm kanal üyelerine gönder (target dahil, böylece target da bilgili olur).
+    ch.broadcast(kickMsg);
+
+    // Hedefi kanaldan çıkar.
+    ch.removeMember(target.getFd());
+
+    // Kanal boş kaldıysa sil.
+    if (ch.getMembers().empty())
+    {
+        _channels.erase(channelName);
+        std::cout << "Channel " << channelName << " is now empty after KICK, removing." << std::endl;
+    }
+
+    std::cout << "KICK: " << sender.getNickname() << " kicked " << targetNick
+              << " from " << channelName << " (" << reason << ")" << std::endl;
+}
+
 void Server::handleKick(Client &sender, const std::string &channelName,
                         const std::string &targetNick, const std::string &reason)
 {
@@ -41,26 +69,5 @@ void Server::handleKick(Client &sender, const std::string &channelName,
     if (!CmdHelpers::requireTargetMember(*this, sender, *ch, *target))
         return;
 
-    // --- Başarı: KICK mesajını yayınla ---
-    // :nick!user@host KICK #channel targetNick :reason
-    std::string prefix = ":" + sender.getNickname() + "!" +
-                         sender.getUsername() + "@localhost";
-    std::string kickMsg = prefix + " KICK " + channelName + " " +
-                          targetNick + " :" + reason + "\r\n";
-
-    // Tüm kanal üyelerine gönder (target dahil, böylece target da bilgili olur).
-    ch->broadcast(kickMsg);
-
-    // Hedefi kanaldan çıkar.
-    ch->removeMember(target->getFd());
-
-    // Kanal boş kaldıysa sil.
-    if (ch->getMembers().empty())
-    {
-        _channels.erase(channelName);
-        std::cout << "Channel " << channelName << " is now empty after KICK, removing." << std::endl;
-    }
-
-    std::cout << "KICK: " << sender.getNickname() << " kicked " << targetNick
-              << " from " << channelName << " (" << reason << ")" << std::endl;
+    executeKick(sender, *ch, *target, channelName, targetNick, reason);
 }
