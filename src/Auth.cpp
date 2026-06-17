@@ -203,6 +203,8 @@ void registration_state(Client &client, const std::string &line,
         }
 
         client.setUsername(args[0]);
+        //Todo:: setrelname
+        client.setRealname(args[3]);
         client.setUserSet(true);
         std::cout << "USER set: " << args[0] << std::endl;
     }
