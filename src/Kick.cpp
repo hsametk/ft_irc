@@ -48,25 +48,25 @@ void Server::handleKick(Client &sender, const std::string &channelName,
                         const std::string &targetNick, const std::string &reason)
 {
     // 2. Kanal var mı?
-    Channel *ch = CmdHelpers::getChannelOrError(*this, sender, channelName);
+    Channel *ch = CmdHelpers_getChannelOrError(*this, sender, channelName);
     if (!ch)
         return;
 
     // 3. Sender kanalda mı?
-    if (!CmdHelpers::requireMember(*this, sender, *ch))
+    if (!CmdHelpers_requireMember(*this, sender, *ch))
         return;
 
     // 4. Sender operator mü?
-    if (!CmdHelpers::requireOperator(*this, sender, *ch))
+    if (!CmdHelpers_requireOperator(*this, sender, *ch))
         return;
 
     // 5. Hedef nick var mı?
-    Client *target = CmdHelpers::getClientByNick(*this, sender, targetNick);
+    Client *target = CmdHelpers_getClientByNick(*this, sender, targetNick);
     if (!target)
         return;
 
     // 6. Hedef kanalda mı?
-    if (!CmdHelpers::requireTargetMember(*this, sender, *ch, *target))
+    if (!CmdHelpers_requireTargetMember(*this, sender, *ch, *target))
         return;
 
     executeKick(sender, *ch, *target, channelName, targetNick, reason);

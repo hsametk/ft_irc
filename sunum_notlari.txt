@@ -1,0 +1,56 @@
+Projeye Genel Bakış (ft_irc)
+----------------------------------
+Bu proje, C++98 standartlarında geliştirilmiş, RFC 1459 / RFC 2812 standartlarını baz alan bir IRC (Internet Relay Chat) sunucusudur. Temel amaç, birden fazla istemcinin (client) aynı anda sunucuya bağlanıp birbirleriyle iletişim kurmasını, kanallar oluşturmasını ve veri alışverişi yapmasını sağlamaktır. Sunucu, bunu yaparken thread kullanmadan, tek bir process üzerinden "non-blocking I/O" ve "poll()" mekanizmalarıyla çoklu bağlantıları (multiplexing) yönetir.
+
+1. Ana Sınıflar ve Roller
+----------------------------------
+* main.cpp:
+  Programın giriş noktasıdır. Kullanıcıdan gelen argümanları (port ve şifre) kontrol eder. Geçerliyse Server sınıfını başlatır ve `server.run()` döngüsüne girer.
+
+* Server Sınıfı (Server.cpp, ServerInit.cpp, ServerLoop.cpp, ServerClient.cpp vb.):
+  Projenin kalbidir.
+  - ServerInit.cpp: Sunucunun soketinin oluşturulması (socket), non-blocking moda alınması (fcntl), IP/Porta bağlanması (bind) ve dinlemeye başlaması (listen) adımlarını yönetir. Daha sonra bu dinleme soketini `_pfds` (pollfd listesi) içine ekler.
+  - ServerLoop.cpp: Sonsuz `run()` döngüsünün bulunduğu yerdir. `poll()` fonksiyonu ile hangi socket'lerde veri okumaya (POLLIN) veya yazmaya (POLLOUT) hazır olunduğunu kontrol eder.
+  - İstemci kabulleri (`acceptClient`), veri okuma (`receiveFromClient`) ve veri gönderme (`sendToClient`) yine bu sınıf üzerinden yapılır.
+
+* Client Sınıfı:
+  Bağlanan her bir kullanıcıyı temsil eder. Kullanıcının socket dosya tanımlayıcısı (fd), kullandığı Nickname, Username, bağlantı durumu (şifre girildi mi? kayıt oldu mu?) gibi bilgilerini tutar.
+  Ayrıca gelen ve giden veriler için kendi "buffer"larını (tampon bellek) barındırır. İstemci veriyi tam yollamadan satır sonu (\r\n) gelmezse, veri bu buffer'da birikir.
+
+* Channel Sınıfı:
+  Kanal mantığını yönetir. Kanala bağlı olan Client'ları (üyeleri ve operatörleri) bir haritada (map) tutar. Aynı zamanda kanala özel ayarları (modları) barındırır:
+  - i: Sadece davetle girilebilir (Invite-only)
+  - t: Başlığı (topic) sadece operatörler değiştirebilir.
+  - k: Kanal şifresi.
+  - o: Kanal operatörü ayrıcalıkları.
+  - l: Kullanıcı sınırı.
+
+2. Veri Akışı ve Olay Döngüsü (Event Loop - poll)
+----------------------------------
+Program asenkron çalışıyormuş gibi davranır çünkü "non-blocking I/O" (engellemesiz okuma/yazma) kullanır.
+1. `poll()` fonksiyonu, `_pfds` içindeki tüm dosya tanımlayıcıları (fd) tarar.
+2. Eğer "Server fd" sinde bir POLLIN (veri geldi) varsa, bu yeni bir bağlantı isteğidir. Hemen `accept()` yapılarak yeni bir Client oluşturulur ve `poll()` listesine eklenir.
+3. Eğer mevcut bir "Client fd" sinde POLLIN varsa, `recv()` ile veri okunur. Okunan veri Client'ın buffer'ına eklenir.
+4. Gelen veride `\r\n` (veya \n) bulunduğunda, satır parçalanır (extractLines) ve komut işleyiciye (parser) gönderilir.
+5. Eğer bir "Client fd" sinde POLLOUT varsa ve Client'ın gönderme buffer'ında veri birikmişse, `send()` ile bu veriler istemciye gönderilir.
+
+3. Yetkilendirme (Auth) ve Komut İşleme (Parsing)
+----------------------------------
+* Kayıt Aşaması (Registration State):
+  Kullanıcı bağlandığında sırasıyla PASS, NICK ve USER komutlarını göndermelidir (Auth.cpp içinde). Şifre yanlışsa veya nick kullanımda ise hata verilir. Başarılı olursa kullanıcı "kayıtlı" hale geçer ve sunucu tarafından hoş geldin mesajları gönderilir.
+
+* Komutların Yönlendirilmesi (dispatch_command):
+  Kayıtlı kullanıcılardan gelen her satır, `parse_line` ile bir Komut (Command) ve Argümanlara (Args) ayrılır.
+  Sonrasında ilgili fonksiyon çağrılır:
+  - JOIN: Kullanıcıyı kanala ekler, kanal yoksa oluşturur. Gerekli RPL mesajlarını (Kanal isim listesi vs.) döner.
+  - PRIVMSG: Bir kullanıcıya veya kanala mesaj göndermek içindir.
+  - KICK / PART / QUIT: Kanaldan atma, kanaldan çıkma ve sunucudan ayrılma işlemlerini yönetir.
+  - MODE: Kanal özelliklerini (i, t, k, o, l) değiştirmeyi sağlar.
+
+4. Değerlendirme (Evo) İçin Önemli Tüyolar
+----------------------------------
+1. Non-blocking (fcntl) neden gerekli? -> Eğer bir client veriyi yarım gönderirse, `recv()` fonksiyonu verinin devamını bekleyip sunucuyu dondurmasın diye.
+2. Buffer taşmaları (Buffer Overflow): Veri paket paket gelebilir (örneğin sadece 'H', sonra 'e', sonra 'llo\r\n'). Client'ın kendi okuma buffer'ı, '\r\n' görene kadar bunları birleştirir.
+3. poll() avantajı: Select'e göre dosya tanımlayıcı sınırı (1024) konusunda daha esnektir ve dizilerle çalışması kullanımı kolaylaştırır.
+4. NICK ve USER çakışmaları kontrol ediliyor mu? -> Evet, Auth.cpp içindeki handle_nick ve handle_user fonksiyonlarında kontrolleri görebilirsiniz.
+5. Operatör komutları: KICK, MODE, INVITE ve TOPIC (eğer t modu açıksa) komutları o kanalda sadece operatör (founder) yetkisi olan kişilerce çalıştırılabilir.

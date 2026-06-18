@@ -1,8 +1,5 @@
 #include "../include/Server.hpp"
 #include "../include/Auth.hpp"
-#include <cstring>
-#include <iostream>
-#include <cstdlib>
 
 // Public: Event Loop
 void Server::run()

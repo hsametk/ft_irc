@@ -1,5 +1,4 @@
 #include "../include/Server.hpp"
-#include <iostream>
 
 // Private: Initialise Socket
 void Server::initServer()

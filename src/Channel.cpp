@@ -1,5 +1,4 @@
 #include "../include/Channel.hpp"
-#include <unistd.h>
 
 // Constructor
 Channel::Channel() : _name(""), _topic(""), _key(""), _limit(0), _inviteOnly(false), _topicOpOnly(false) {}

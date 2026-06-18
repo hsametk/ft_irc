@@ -1,7 +1,5 @@
 #include "../include/Server.hpp"
 #include "../include/CmdHelpers.hpp"
-#include <cstdlib>   // atoi
-#include <cctype>    // isdigit
 
 // ---------------------------------------------------------------------------
 // Yardımcı: string'in geçerli pozitif sayı olup olmadığını kontrol eder
@@ -125,12 +123,12 @@ bool Server::applyModeO(Client &sender, Channel &ch, bool adding,
     ++paramIdx;
 
     // 7. Hedef nick var mı?
-    Client *target = CmdHelpers::getClientByNick(*this, sender, targetNick);
+    Client *target = CmdHelpers_getClientByNick(*this, sender, targetNick);
     if (!target)
         return false;
 
     // 8. Hedef kanalda mı?
-    if (!CmdHelpers::requireTargetMember(*this, sender, ch, *target))
+    if (!CmdHelpers_requireTargetMember(*this, sender, ch, *target))
         return false;
 
     std::string prefix = ":" + sender.getNickname() + "!" +
@@ -183,14 +181,14 @@ void Server::handleMode(Client &sender, const std::string &channelName,
                         const std::vector<std::string> &modeParams)
 {
     // 2. Kanal var mı?
-    Channel *ch = CmdHelpers::getChannelOrError(*this, sender, channelName);
+    Channel *ch = CmdHelpers_getChannelOrError(*this, sender, channelName);
     if (!ch)
         return;
     // 3. Sender kanalda mı?
-    if (!CmdHelpers::requireMember(*this, sender, *ch))
+    if (!CmdHelpers_requireMember(*this, sender, *ch))
         return;
     // 4. Sender operator mü?
-    if (!CmdHelpers::requireOperator(*this, sender, *ch))
+    if (!CmdHelpers_requireOperator(*this, sender, *ch))
         return;
     // Uygulanan mod değişikliklerini RPL_CHANNELMODEIS (324) için biriktir
     std::string appliedModes;

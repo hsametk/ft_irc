@@ -15,6 +15,10 @@
 #include <unistd.h>
 #include <csignal>
 #include <cstring>
+#include <cstdlib>
+#include <cerrno>
+#include <set>
+#include <cctype>
 #include "Client.hpp"
 #include "Channel.hpp"
 
