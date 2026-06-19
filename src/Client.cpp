@@ -60,11 +60,6 @@ bool Client::isPassOk()     const { return _passOk; }
 bool Client::isNickSet()    const { return _nickset; }
 bool Client::isUserSet()    const { return _userset; }
 bool Client::isRegistered() const { return _registered; }
-=======
-void Client::sendMessage(const std::string &msg)
-{
-    _sendBuffer.append(msg);
-}
 
 std::string& Client::getSendBuffer()
 {
