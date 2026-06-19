@@ -1,5 +1,4 @@
 #include "../include/Client.hpp"
-
 // ---------------------------------------------------------------------------
 // Client — sunucuya bağlı tek bir kullanıcıyı temsil eder.
 // fd, kayıt durumu (PASS/NICK/USER), kimlik bilgileri ve partial veri için
@@ -35,6 +34,7 @@ Client &Client::operator=(const Client &other)
         _userset    = other._userset;
         _registered = other._registered;
         _buffer     = other._buffer;
+        _sendBuffer = other._sendBuffer;
     }
     return *this;
 }
@@ -60,6 +60,24 @@ bool Client::isPassOk()     const { return _passOk; }
 bool Client::isNickSet()    const { return _nickset; }
 bool Client::isUserSet()    const { return _userset; }
 bool Client::isRegistered() const { return _registered; }
+=======
+void Client::sendMessage(const std::string &msg)
+{
+    _sendBuffer.append(msg);
+}
+
+std::string& Client::getSendBuffer()
+{
+    return _sendBuffer;
+}
+
+void Client::eraseFromSendBuffer(size_t n)
+{
+    if (n <= _sendBuffer.size())
+        _sendBuffer.erase(0, n);
+    else
+        _sendBuffer.clear();
+}
 
 void Client::setPassOk(bool v)     { _passOk     = v; }
 void Client::setNickSet(bool v)    { _nickset    = v; }

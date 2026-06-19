@@ -1,15 +1,10 @@
 #include "../include/CmdHelpers.hpp"
-#include <map>
-#include <string>
-
-namespace CmdHelpers
-{
 
 // ---------------------------------------------------------------------------
-// getChannelOrError
+// CmdHelpers_getChannelOrError
 // ---------------------------------------------------------------------------
-Channel *getChannelOrError(Server &server, Client &caller,
-                           const std::string &channelName)
+Channel *CmdHelpers_getChannelOrError(Server &server, Client &caller,
+                                      const std::string &channelName)
 {
     std::map<std::string, Channel> &channels = server.getChannels();
     std::map<std::string, Channel>::iterator it = channels.find(channelName);
@@ -23,10 +18,10 @@ Channel *getChannelOrError(Server &server, Client &caller,
 }
 
 // ---------------------------------------------------------------------------
-// getClientByNick
+// CmdHelpers_getClientByNick
 // ---------------------------------------------------------------------------
-Client *getClientByNick(Server &server, Client &caller,
-                        const std::string &nick)
+Client *CmdHelpers_getClientByNick(Server &server, Client &caller,
+                                   const std::string &nick)
 {
     std::map<int, Client> &clients = server.getClients();
     for (std::map<int, Client>::iterator it = clients.begin();
@@ -40,9 +35,9 @@ Client *getClientByNick(Server &server, Client &caller,
 }
 
 // ---------------------------------------------------------------------------
-// requireMember  — checks that the CALLER is in the channel
+// CmdHelpers_requireMember  — checks that the CALLER is in the channel
 // ---------------------------------------------------------------------------
-bool requireMember(Server &server, Client &caller, Channel &channel)
+bool CmdHelpers_requireMember(Server &server, Client &caller, Channel &channel)
 {
     if (!channel.hasMember(caller.getFd()))
     {
@@ -54,9 +49,9 @@ bool requireMember(Server &server, Client &caller, Channel &channel)
 }
 
 // ---------------------------------------------------------------------------
-// requireOperator — checks that the CALLER is a channel operator
+// CmdHelpers_requireOperator — checks that the CALLER is a channel operator
 // ---------------------------------------------------------------------------
-bool requireOperator(Server &server, Client &caller, Channel &channel)
+bool CmdHelpers_requireOperator(Server &server, Client &caller, Channel &channel)
 {
     if (!channel.isOperator(caller.getFd()))
     {
@@ -68,10 +63,10 @@ bool requireOperator(Server &server, Client &caller, Channel &channel)
 }
 
 // ---------------------------------------------------------------------------
-// requireTargetMember — checks that the TARGET is in the channel
+// CmdHelpers_requireTargetMember — checks that the TARGET is in the channel
 // ---------------------------------------------------------------------------
-bool requireTargetMember(Server &server, Client &caller,
-                         Channel &channel, Client &target)
+bool CmdHelpers_requireTargetMember(Server &server, Client &caller,
+                                    Channel &channel, Client &target)
 {
     if (!channel.hasMember(target.getFd()))
     {
@@ -82,5 +77,3 @@ bool requireTargetMember(Server &server, Client &caller,
     }
     return true;
 }
-
-} // namespace CmdHelpers

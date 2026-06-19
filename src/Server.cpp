@@ -1,6 +1,4 @@
 #include "../include/Server.hpp"
-#include <sstream>
-#include <set>
 
 // ---------------------------------------------------------------------------
 // ServerClient — sunucunun yaşam döngüsü ve client'a yönelik yardımcıları:
@@ -61,6 +59,7 @@ void Server::sendError(Client &client, int code, const std::string &msg)
     std::string errorMsg = ":ircserv " + intToStr(code) + " "
                          + client.getNickname() + " " + msg + "\r\n";
     send(client.getFd(), errorMsg.c_str(), errorMsg.size(), 0);
+
 }
 
 // --- NICK değişikliği duyurusu ---

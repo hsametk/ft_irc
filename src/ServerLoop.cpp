@@ -1,8 +1,5 @@
 #include "../include/Server.hpp"
 #include "../include/Auth.hpp"
-#include <cstring>
-#include <iostream>
-
 // ---------------------------------------------------------------------------
 // ServerLoop — event loop ve I/O: poll döngüsü, yeni bağlantı kabulü,
 // client'tan veri okuma ve satır ayıklama.
@@ -24,7 +21,6 @@ void Server::run()
             std::cerr << "Error: poll() failed\n";
             break;
         }
-
         // Silme işlemlerinden etkilenmemek için mevcut boyut üzerinden gez.
         size_t currentSize = _pfds.size();
         for (size_t i = 0; i < currentSize; i++)
@@ -40,7 +36,6 @@ void Server::run()
     }
 }
 
-// --- Yeni bağlantı kabulü ---
 void Server::acceptClient()
 {
     int clientFd = accept(_serverFd, NULL, NULL);

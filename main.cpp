@@ -1,5 +1,4 @@
 #include "include/Server.hpp"
-#include <cstdlib>
 
 
 void check_args(int argc, char *argv[], int &port, std::string &password)
@@ -16,7 +15,7 @@ void check_args(int argc, char *argv[], int &port, std::string &password)
     // 1-1023 are reserved ports
     // 1024-65535 are valid ports
     port = std::atoi(argv[1]);
-    if (port <= 0 || port > 65535)
+    if (port <= 1024 || port > 65535)
     {
         std::cerr << "Error: invalid port number\n";
         exit(1);
@@ -28,7 +27,6 @@ void check_args(int argc, char *argv[], int &port, std::string &password)
         exit(1);
     }
 }
-//TODO: Bir servera bağlıyken tekrar tekrar bağlanaıyor bug fix
 int main(int argc, char *argv[])
 {
     int port;
@@ -46,4 +44,3 @@ int main(int argc, char *argv[])
     }
     return 0;
 }
-//feat: implement KICK, TOPIC, and MODE command handlers with validation helpers

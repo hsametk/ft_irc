@@ -4,6 +4,7 @@
 #include <string>
 #include <map>
 #include <set>
+#include <unistd.h>
 #include "Client.hpp"
 
 class Channel
