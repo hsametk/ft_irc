@@ -1,13 +1,15 @@
 #include "../include/Server.hpp"
-// #include "../include/Auth.hpp"
-#include <cerrno>
-#include <cstring>
 #include <sstream>
 #include <set>
 
+// ---------------------------------------------------------------------------
+// ServerClient — sunucunun yaşam döngüsü ve client'a yönelik yardımcıları:
+// kurulum/kapanış, sinyal yönetimi, hata mesajı gönderimi ve NICK duyurusu.
+// ---------------------------------------------------------------------------
+
 bool Server::_running = true;
 
-// C++98 uyumlu int → string dönüşümü
+// C++98 uyumlu int → string dönüşümü (std::to_string yok).
 static std::string intToStr(int n)
 {
     std::ostringstream oss;
@@ -15,7 +17,7 @@ static std::string intToStr(int n)
     return oss.str();
 }
 
-// Constructor / Destructor
+// --- Constructor / Destructor ---
 Server::Server(int port, const std::string &password)
     : _serverFd(-1), _port(port), _password(password)
 {
@@ -35,14 +37,16 @@ Server::Server(int port, const std::string &password)
 
 Server::~Server()
 {
-    for (std::map<int, Client>::iterator it = _clients.begin(); it != _clients.end(); ++it)
+    for (std::map<int, Client>::iterator it = _clients.begin();
+         it != _clients.end(); ++it)
         close(it->first);
     if (_serverFd != -1)
         close(_serverFd);
     std::cout << "Server shut down cleanly.\n";
 }
 
-// Signal Handler
+// --- Signal handler ---
+// SIGINT / SIGTERM geldiğinde event loop'u durdurur.
 void Server::signalHandler(int signum)
 {
     (void)signum;
@@ -50,22 +54,24 @@ void Server::signalHandler(int signum)
     _running = false;
 }
 
-
-// Send error message to client
-void Server::sendError(Client& client, int code, const std::string& msg)
+// --- Hata mesajı gönderimi ---
+// Standart IRC numeric formatında hata yollar: ":ircserv <code> <nick> <msg>"
+void Server::sendError(Client &client, int code, const std::string &msg)
 {
-    std::string errorMsg = ":ircserv " + intToStr(code) + " " + client.getNickname() + " " + msg + "\r\n";
+    std::string errorMsg = ":ircserv " + intToStr(code) + " "
+                         + client.getNickname() + " " + msg + "\r\n";
     send(client.getFd(), errorMsg.c_str(), errorMsg.size(), 0);
 }
 
-// NICK değişikliğini kullanıcının bulunduğu tüm kanallara duyurur.
-// Aynı kullanıcıya birden fazla mesaj gitmemesi için fd bazlı deduplicate yapar.
-void Server::broadcastNickChange(Client& client, const std::string& oldNick)
+// --- NICK değişikliği duyurusu ---
+// Kullanıcının bulunduğu tüm kanallardaki üyelere NICK değişimini bildirir.
+// Aynı kullanıcıya birden fazla ortak kanaldan tekrar gönderilmemesi için
+// fd bazlı deduplicate uygulanır.
+void Server::broadcastNickChange(Client &client, const std::string &oldNick)
 {
     std::string nickMsg = ":" + oldNick + "!" + client.getUsername()
                         + "@localhost NICK " + client.getNickname() + "\r\n";
 
-    // Birden fazla ortak kanaldaki kullanıcıya yalnızca bir kez gönder.
     std::set<int> notified;
     notified.insert(client.getFd()); // Kendisine zaten gönderildi.
 
@@ -74,7 +80,8 @@ void Server::broadcastNickChange(Client& client, const std::string& oldNick)
     {
         if (!ch->second.hasMember(client.getFd()))
             continue;
-        const std::map<int, Client*>& members = ch->second.getMembers();
+
+        const std::map<int, Client*> &members = ch->second.getMembers();
         for (std::map<int, Client*>::const_iterator m = members.begin();
              m != members.end(); ++m)
         {
@@ -86,4 +93,3 @@ void Server::broadcastNickChange(Client& client, const std::string& oldNick)
         }
     }
 }
-

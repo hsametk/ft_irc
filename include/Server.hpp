@@ -64,6 +64,33 @@ private:
     // Verilen nick'e sahip client'ı bulur, yoksa NULL döner.
     Client* findClientByNick(const std::string& nick);
 
+    // Buffer'daki tamamlanmış satırları sırayla işler.
+    void processLines(Client &client, int fd);
+
+    // ServerClient yardımcıları (uzun fonksiyonları bölmek için)
+    void removePollFd(int fd);
+    void notifyChannelsOnQuit(int fd);
+    void removeChannelIfEmpty(const std::string &channelName);
+    bool canClientJoin(Client &client, Channel &channel,
+                       const std::string &key, const std::string &channelName);
+    void sendJoinReplies(Client &client, const std::string &channelName, Channel &channel);
+    void sendToChannel(Client &client, const std::string &target, const std::string &fullMsg);
+    void sendToUser(Client &client, const std::string &target, const std::string &fullMsg);
+    void sendTopicView(Client &client, const std::string &channelName, Channel &channel);
+    void setChannelTopic(Client &client, const std::string &channelName,
+                         Channel &channel, const std::string &newTopic);
+    void sendInviteSuccess(Client &client, Client &target,
+                           const std::string &nickArg, const std::string &channelArg,
+                           Channel &channel);
+    // Komut parametre ayrıştırıcıları
+    void trimTrailing(std::string &s);
+    void parseChannelAndReason(const std::string &params,
+                               std::string &channelName, std::string &reason);
+    void parseTopicParams(const std::string &params, std::string &channelName,
+                          std::string &newTopic, bool &topicGiven);
+    void parseInviteParams(const std::string &params,
+                           std::string &nickArg, std::string &channelArg);
+
 public:
     Server(int port, const std::string &password);
     ~Server();
