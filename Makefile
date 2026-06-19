@@ -6,14 +6,16 @@ CXXFLAGS = -Wall -Wextra -Werror -std=c++98
 SRCS    = main.cpp \
           src/Server.cpp \
           src/Client.cpp \
-		  src/Auth.cpp \
-		  src/Channel.cpp \
-		  src/ServerInit.cpp \
-		  src/ServerLoop.cpp \
-		  src/ServerClient.cpp \
-		  src/CmdHelpers.cpp \
-		  src/Kick.cpp \
-		  src/Mode.cpp
+          src/Auth.cpp \
+          src/Channel.cpp \
+          src/ServerInit.cpp \
+          src/ServerLoop.cpp \
+          src/ServerClient.cpp \
+          src/ServerChannel.cpp \
+          src/ServerMessage.cpp \
+          src/CmdHelpers.cpp \
+          src/Kick.cpp \
+          src/Mode.cpp
 
 OBJS    = $(SRCS:.cpp=.o)
 

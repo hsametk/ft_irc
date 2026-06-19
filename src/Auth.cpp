@@ -191,7 +191,19 @@ void registration_state(Client &client, const std::string &line,
     else if (command == "NICK")
         handle_nick_registration(client, args, clients);
     else if (command == "USER")
-        handle_user(client, args);
+    {
+        if (args.size() < 4)
+        {
+            client.sendMessage(":ircserv 461 * USER :Not enough parameters\r\n");
+            return;
+        }
+
+        client.setUsername(args[0]);
+        //Todo:: setrelname
+        client.setRealname(args[3]);
+        client.setUserSet(true);
+        std::cout << "USER set: " << args[0] << std::endl;
+    }
     else
     {
         // Kayıt tamamlanmadan gelen diğer komutlar için 451 ERR_NOTREGISTERED
