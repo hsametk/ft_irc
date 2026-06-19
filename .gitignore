@@ -14,3 +14,4 @@ ircserv_asan
 test_irc.sh
 test_irssi.sh
 .DS_Store
+sunum_notlari.txt

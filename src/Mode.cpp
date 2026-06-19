@@ -196,32 +196,40 @@ void Server::handleMode(Client &sender, const std::string &channelName,
     bool        adding   = true;  // '+' → true, '-' → false
     size_t      paramIdx = 0;     // modeParams içindeki sıradaki parametre
 
-    typedef bool (Server::*ModeHandler)(Client &, Channel &, bool, const std::string &, const std::vector<std::string> &, size_t &, std::string &, std::string &);
-    static std::map<char, ModeHandler> handlers;
-    if (handlers.empty())
-    {
-        handlers['i'] = &Server::applyModeI;
-        handlers['t'] = &Server::applyModeT;
-        handlers['k'] = &Server::applyModeK;
-        handlers['l'] = &Server::applyModeL;
-        handlers['o'] = &Server::applyModeO;
-    }
-
     for (size_t i = 0; i < modeStr.size(); ++i)
     {
         char c = modeStr[i];
         if (c == '+') { adding = true; continue; }
         if (c == '-') { adding = false; continue; }
 
-        if (handlers.count(c))
+        bool ok = true;
+        if (c == 'i')
         {
-            if (!(this->*handlers[c])(sender, *ch, adding, channelName, modeParams, paramIdx, appliedModes, appliedParams))
-                return;
+            ok = applyModeI(sender, *ch, adding, channelName, modeParams, paramIdx, appliedModes, appliedParams);
+        }
+        else if (c == 't')
+        {
+            ok = applyModeT(sender, *ch, adding, channelName, modeParams, paramIdx, appliedModes, appliedParams);
+        }
+        else if (c == 'k')
+        {
+            ok = applyModeK(sender, *ch, adding, channelName, modeParams, paramIdx, appliedModes, appliedParams);
+        }
+        else if (c == 'l')
+        {
+            ok = applyModeL(sender, *ch, adding, channelName, modeParams, paramIdx, appliedModes, appliedParams);
+        }
+        else if (c == 'o')
+        {
+            ok = applyModeO(sender, *ch, adding, channelName, modeParams, paramIdx, appliedModes, appliedParams);
         }
         else
         {
             sender.sendMessage(":ircserv 472 " + sender.getNickname() + " " + c + " :is unknown mode char to me\r\n");
         }
+
+        if (!ok)
+            return;
     }
 
     // Eğer +i/+t/+k/+l için mod değişikliği uygulandıysa kanala bildir
